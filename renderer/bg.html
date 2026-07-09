@@ -126,6 +126,10 @@
   <rect width="2560" height="1440" filter="url(#grain)" style="mix-blend-mode:overlay" opacity="0.5"/>
   <rect width="2560" height="1440" fill="url(#vig)"/>
 </svg>
+<!-- NOTE: this generator script MUST live here, outside the <svg>. An SVG-embedded
+     <script> silently does not execute in Chromium here (functions never defined,
+     no error), so the procedural cracks/spikes/flames never render. As a plain HTML
+     <script> after </svg> it runs and populates the SVG groups by id. -->
 <script>
     const NS="http://www.w3.org/2000/svg";
     const R=(a,b)=>a+Math.random()*(b-a);

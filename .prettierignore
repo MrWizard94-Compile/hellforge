@@ -1,0 +1,5 @@
+node_modules/
+dist/
+renderer/*.png
+renderer/fonts.css
+package-lock.json

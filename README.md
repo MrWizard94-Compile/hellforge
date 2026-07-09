@@ -9,7 +9,7 @@ Part of **WPAI** (Wizard Productions AI Studio). Human-directed, AI-assisted, fu
 - **Real terminals** — pwsh / PowerShell / cmd / WSL / Git Bash on a genuine ConPTY, plus a one-click **Summon Claude** that drops Claude Code into a pane.
 - **Command palette** (`Ctrl+P`) — fuzzy-search every project, cast command "spells", or run actions. Opens a forge already `cd`'d into any project.
 - **Split panes** — 1 / 2 / 4 live terminals in a grid (`Alt+1/2/4`, `Ctrl+D` to split), with **broadcast input**: type once, run in every visible pane.
-- **Living forge** — the HELLFIRE PRESSURE gauge reads real CPU load; a synthesized metal *clang* and tab flash fire when a long command finishes in a pane you're not watching ("sacrifice complete"). Optional forge-rumble ambient.
+- **Living forge** — the HELLFIRE PRESSURE gauge reads real CPU load; a synthesized metal _clang_ and tab flash fire when a long command finishes in a pane you're not watching ("sacrifice complete"). Optional forge-rumble ambient.
 - **Settings** — shell picker, font size, glass opacity, sound toggles (persisted). In-terminal search (`Ctrl+F`), font zoom (`Ctrl+±/0`), window-position memory.
 
 ## Run
@@ -29,14 +29,26 @@ Requires Node + a Chromium-capable Electron platform. The lava wall, iron frame,
 
 ## Keyboard
 
-| Shortcut | Action |
-|---|---|
-| `Ctrl+P` | Command palette |
-| `Ctrl+T` / `Ctrl+W` | New / close forge |
+| Shortcut               | Action             |
+| ---------------------- | ------------------ |
+| `Ctrl+P`               | Command palette    |
+| `Ctrl+T` / `Ctrl+W`    | New / close forge  |
 | `Ctrl+D` · `Alt+1/2/4` | Split · set layout |
-| `Ctrl+F` | Search in terminal |
-| `Ctrl+±` / `Ctrl+0` | Font zoom / reset |
+| `Ctrl+F`               | Search in terminal |
+| `Ctrl+±` / `Ctrl+0`    | Font zoom / reset  |
+
+## Development
+
+Pure, DOM-free logic lives in `renderer/core.js` (fuzzy search, pane visibility, layout math, shell-arg building) so it's unit-testable in Node; `app.js` is the DOM/PTY glue that calls into it.
+
+```bash
+npm test          # node:test suite over core.js
+npm run lint      # eslint (zero warnings expected)
+npm run format    # prettier --write
+```
+
+Note: `renderer/app.js` is loaded as a classic `<script>`, so every top-level `const`/`let` shares one lexical scope — anything used by later top-level code must be declared above its first use (`$` is defined first) or it hits the temporal dead zone and the script silently aborts. The background art generators (`renderer/*.html`) render to PNG via headless Chromium; their `<script>` must sit outside the `<svg>` (SVG-embedded scripts don't execute there).
 
 ---
 
-*AI is in the name; the wizard is in the work.*
+_AI is in the name; the wizard is in the work._

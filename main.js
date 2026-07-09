@@ -6,14 +6,27 @@ const pty = require("@lydell/node-pty");
 
 let win;
 let stateFile;
-function loadState() { try { return JSON.parse(fs.readFileSync(stateFile, "utf8")); } catch { return {}; } }
-function saveState() { try { if (win && !win.isDestroyed()) fs.writeFileSync(stateFile, JSON.stringify(win.getBounds())); } catch {} }
+function loadState() {
+  try {
+    return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  } catch {
+    return {};
+  }
+}
+function saveState() {
+  try {
+    if (win && !win.isDestroyed()) fs.writeFileSync(stateFile, JSON.stringify(win.getBounds()));
+  } catch {
+    /* best-effort; ignore */
+  }
+}
 const ptys = new Map();
 let nextId = 1;
 
 // ---- system load sampling (real hellfire pressure) ----
 function cpuTimes() {
-  let idle = 0, total = 0;
+  let idle = 0,
+    total = 0;
   for (const c of os.cpus()) {
     for (const t in c.times) total += c.times[t];
     idle += c.times.idle;
@@ -23,7 +36,8 @@ function cpuTimes() {
 let lastCpu = cpuTimes();
 function cpuPercent() {
   const cur = cpuTimes();
-  const di = cur.idle - lastCpu.idle, dt = cur.total - lastCpu.total;
+  const di = cur.idle - lastCpu.idle,
+    dt = cur.total - lastCpu.total;
   lastCpu = cur;
   return dt > 0 ? Math.max(0, Math.min(100, 100 * (1 - di / dt))) : 0;
 }
@@ -42,7 +56,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: s.width || 1280,
     height: s.height || 800,
-    x: s.x, y: s.y,
+    x: s.x,
+    y: s.y,
     minWidth: 720,
     minHeight: 480,
     frame: false,
@@ -98,10 +113,23 @@ ipcMain.on("pty:input", (e, { id, data }) => {
 
 ipcMain.on("pty:resize", (e, { id, cols, rows }) => {
   const p = ptys.get(id);
-  if (p) { try { p.resize(cols, rows); } catch {} }
+  if (p) {
+    try {
+      p.resize(cols, rows);
+    } catch {
+      /* best-effort; ignore */
+    }
+  }
 });
 
 ipcMain.on("pty:kill", (e, id) => {
   const p = ptys.get(id);
-  if (p) { try { p.kill(); } catch {} ptys.delete(id); }
+  if (p) {
+    try {
+      p.kill();
+    } catch {
+      /* best-effort; ignore */
+    }
+    ptys.delete(id);
+  }
 });

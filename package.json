@@ -5,12 +5,19 @@
   "description": "WPAI HellForge - a studio-grade forge for terminals. Ember on coal.",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node --test test/core.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,json,css,html,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,css,html,md}\""
   },
   "author": "WPAI (Rob Bulkley)",
   "license": "UNLICENSED",
   "devDependencies": {
-    "electron": "^31.3.0"
+    "@eslint/js": "^10.0.1",
+    "electron": "^31.3.0",
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.5"
   },
   "dependencies": {
     "@lydell/node-pty": "^1.0.1",
