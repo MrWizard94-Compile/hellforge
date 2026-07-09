@@ -1,0 +1,19 @@
+# dependencies (reinstall with: npm install)
+node_modules/
+
+# electron build output
+dist/
+out/
+
+# logs & os cruft
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# local machine state (regenerated per machine)
+renderer/window-state.json
+
+# projects.js holds absolute local paths — regenerate it per machine
+# (comment the next line out if you want to commit your own project list)
+renderer/projects.js

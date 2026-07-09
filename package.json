@@ -1,0 +1,22 @@
+{
+  "name": "hellforge",
+  "productName": "HellForge",
+  "version": "0.1.0",
+  "description": "WPAI HellForge - a studio-grade forge for terminals. Ember on coal.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "WPAI (Rob Bulkley)",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^31.3.0"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.0.1",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0"
+  }
+}

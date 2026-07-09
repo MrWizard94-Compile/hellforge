@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  *{margin:0;padding:0} html,body{width:2560px;height:1440px;overflow:hidden;background:#000;}
+  svg{display:block;}
+</style></head>
+<body>
+<svg width="2560" height="1440" viewBox="0 0 2560 1440" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- cracked basalt: dark stone with hammered relief -->
+    <filter id="stone" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.006 0.013" numOctaves="6" seed="17" result="n"/>
+      <feDiffuseLighting in="n" surfaceScale="8" diffuseConstant="1.0" lighting-color="#2a2620" result="lit">
+        <feDistantLight azimuth="250" elevation="44"/>
+      </feDiffuseLighting>
+      <feColorMatrix in="lit" type="matrix"
+        values="0.16 0 0 0 0.003
+                0 0.15 0 0 0.003
+                0 0 0.16 0 0.004
+                0 0 0 0 1"/>
+    </filter>
+    <!-- surface cracks (dark, non-glowing hairlines) -->
+    <filter id="craze" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="turbulence" baseFrequency="0.012 0.016" numOctaves="4" seed="8" result="t"/>
+      <feColorMatrix in="t" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.6 0.55" result="a"/>
+      <feComponentTransfer in="a"><feFuncA type="gamma" amplitude="1" exponent="3" offset="0"/></feComponentTransfer>
+      <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0"/>
+    </filter>
+
+    <filter id="lavaGlow"><feGaussianBlur stdDeviation="3.5"/></filter>
+    <filter id="lavaHalo"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="softer"><feGaussianBlur stdDeviation="70"/></filter>
+    <filter id="spikeTex" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.05" numOctaves="4" seed="5" result="n"/>
+      <feDiffuseLighting in="n" surfaceScale="4" diffuseConstant="1.1" lighting-color="#3a2a1e" result="l">
+        <fePointLight x="1280" y="1400" z="120"/>
+      </feDiffuseLighting>
+      <feColorMatrix in="l" type="matrix" values="0.4 0 0 0 0  0 0.28 0 0 0  0 0 0.2 0 0  0 0 0 0 1"/>
+      <feComposite in2="SourceAlpha" operator="in"/>
+    </filter>
+    <filter id="flame" x="-30%" y="-30%" width="160%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.022" numOctaves="5" seed="12" result="fn"/>
+      <feDisplacementMap in="SourceGraphic" in2="fn" scale="130" xChannelSelector="R" yChannelSelector="G"/>
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="2" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.4  0 0 0 0 0.33  0 0 0 0.55 0"/>
+    </filter>
+
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#050302"/>
+      <stop offset="45%" stop-color="#070403"/>
+      <stop offset="74%" stop-color="#130804"/>
+      <stop offset="100%" stop-color="#2e1206"/>
+    </linearGradient>
+    <radialGradient id="pit" cx="50%" cy="80%" r="60%">
+      <stop offset="0%"  stop-color="#fff4d6"/>
+      <stop offset="14%" stop-color="#ffd27a"/>
+      <stop offset="34%" stop-color="#ff8c34"/>
+      <stop offset="55%" stop-color="#e0480f"/>
+      <stop offset="78%" stop-color="#7a1d07"/>
+      <stop offset="100%" stop-color="rgba(40,10,4,0)"/>
+    </radialGradient>
+    <linearGradient id="fireGrad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#fff0c0"/>
+      <stop offset="30%" stop-color="#ffb43a"/>
+      <stop offset="65%" stop-color="#ff6a1a"/>
+      <stop offset="100%" stop-color="rgba(200,50,10,0)"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="55%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.9)"/>
+    </radialGradient>
+    <!-- cracks glow brighter toward the fire below -->
+    <linearGradient id="veinFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#333"/>
+      <stop offset="45%" stop-color="#888"/>
+      <stop offset="100%" stop-color="#fff"/>
+    </linearGradient>
+    <mask id="veinMask"><rect width="2560" height="1440" fill="url(#veinFade)"/></mask>
+  </defs>
+
+  <!-- wall -->
+  <rect width="2560" height="1440" fill="url(#sky)"/>
+  <rect width="2560" height="1440" fill="#000" filter="url(#stone)" opacity="0.9"/>
+  <rect width="2560" height="1440" filter="url(#craze)" opacity="0.5"/>
+
+  <!-- faint carved runes on the wall -->
+  <g font-family="Georgia, serif" font-weight="700" fill="#000" opacity="0.5" style="paint-order:stroke;">
+    <g fill="#1a0d06" stroke="#050302" stroke-width="1">
+      <text x="300" y="240" font-size="52" letter-spacing="10">&#5792; &#5809; &#5815;</text>
+      <text x="1750" y="300" font-size="52" letter-spacing="10">&#5794; &#5800; &#5825;</text>
+      <text x="900" y="1000" font-size="46" letter-spacing="8" opacity="0.7">&#5809; &#5792; &#5798;</text>
+    </g>
+  </g>
+
+  <!-- lava veins (generated) -->
+  <g id="veinDark" stroke="#050302" fill="none" stroke-linecap="round"></g>
+  <g mask="url(#veinMask)">
+    <g id="veinHalo" style="mix-blend-mode:screen" filter="url(#lavaHalo)" stroke="#e8450f" fill="none" stroke-linecap="round"></g>
+    <g id="veinMid"  style="mix-blend-mode:screen" filter="url(#lavaGlow)" stroke="#ff8c2e" fill="none" stroke-linecap="round"></g>
+    <g id="veinCore" style="mix-blend-mode:screen" stroke="#fff6e0" fill="none" stroke-linecap="round"></g>
+  </g>
+
+  <!-- pit ambient wash rising up the wall -->
+  <ellipse cx="1280" cy="1240" rx="1100" ry="480" fill="rgba(255,110,40,0.16)" filter="url(#softer)" style="mix-blend-mode:screen"/>
+
+  <!-- obsidian spikes rising from the floor -->
+  <g id="spikes"></g>
+
+  <!-- the fire pit -->
+  <g filter="url(#soft)"><ellipse cx="1280" cy="1440" rx="820" ry="260" fill="url(#pit)"/></g>
+  <!-- flames -->
+  <g id="flames" style="mix-blend-mode:screen"></g>
+  <!-- white-hot base -->
+  <ellipse cx="1280" cy="1440" rx="360" ry="90" fill="#fff2cf" filter="url(#soft)" style="mix-blend-mode:screen" opacity="0.9"/>
+
+  <!-- smoke -->
+  <g id="smoke"></g>
+  <!-- floating embers -->
+  <g id="ash"></g>
+
+  <!-- grain + vignette -->
+  <rect width="2560" height="1440" filter="url(#grain)" style="mix-blend-mode:overlay" opacity="0.5"/>
+  <rect width="2560" height="1440" fill="url(#vig)"/>
+</svg>
+<script>
+    const NS="http://www.w3.org/2000/svg";
+    const R=(a,b)=>a+Math.random()*(b-a);
+
+    // ---- lava cracks (bounded, meandering polylines) ----
+    function makeCrack(x,y,ang,steps){
+      let d=`M${x.toFixed(0)},${y.toFixed(0)}`, fork=null;
+      for(let i=0;i<steps;i++){
+        ang += (Math.random()<0.22 ? R(-1.0,1.0) : R(-0.22,0.22)); // occasional sharp kink
+        x += Math.cos(ang)*R(22,46);
+        y += Math.sin(ang)*R(22,46);
+        if(x<40||x>2520||y<60||y>1380) break;
+        d += ` L${x.toFixed(0)},${y.toFixed(0)}`;
+        if(!fork && i>2 && Math.random()<0.5) fork={x,y,ang:ang+R(-1.3,1.3),steps:(steps*0.55)|0};
+      }
+      return {d,fork};
+    }
+    const segs=[];
+    function grow(x,y,ang,steps){
+      if(steps<3||segs.length>46) return;
+      const c=makeCrack(x,y,ang,steps); segs.push(c.d);
+      if(c.fork) grow(c.fork.x,c.fork.y,c.fork.ang,c.fork.steps);
+    }
+    for(let i=0;i<13;i++) grow(R(180,2380), R(120,900), R(0.5,2.6), (R(10,20))|0);
+    for(let i=0;i<8;i++)  grow(R(460,2100), R(760,1180), R(-0.4,3.5), (R(7,13))|0);
+
+    const dark=document.getElementById("veinDark"),
+          halo=document.getElementById("veinHalo"),
+          mid=document.getElementById("veinMid"),
+          core=document.getElementById("veinCore");
+    for(const d of segs){
+      const mk=(parent,w,op)=>{const p=document.createElementNS(NS,"path");p.setAttribute("d",d);p.setAttribute("stroke-width",w);p.setAttribute("opacity",op);parent.appendChild(p);};
+      mk(dark,9,0.98); mk(halo,7,0.4); mk(mid,3,0.82); mk(core,1.2,0.96);
+    }
+
+    // ---- obsidian spikes ----
+    const spikes=document.getElementById("spikes");
+    const nSpikes=16;
+    for(let i=0;i<nSpikes;i++){
+      const cx=R(60,2500);
+      const dist=Math.abs(cx-1280)/1280;              // shorter near the bright center
+      const h=R(120,360)*(0.5+dist*0.8);
+      const w=R(34,80)*(0.7+dist*0.4);
+      const baseY=1440-R(0,40);
+      const tipX=cx+R(-w*0.3,w*0.3);
+      const g=document.createElementNS(NS,"g");
+      const p=document.createElementNS(NS,"path");
+      p.setAttribute("d",`M${cx-w/2},${baseY} L${tipX},${baseY-h} L${cx+w/2},${baseY} Z`);
+      p.setAttribute("fill","#050302"); p.setAttribute("filter","url(#spikeTex)");
+      g.appendChild(p);
+      // rim light on the fire-facing side
+      const side = cx<1280?1:-1;
+      const rim=document.createElementNS(NS,"path");
+      rim.setAttribute("d",`M${tipX},${baseY-h} L${cx+side*w/2},${baseY}`);
+      rim.setAttribute("stroke","#ff7a2e"); rim.setAttribute("stroke-width","2.2");
+      rim.setAttribute("opacity",(0.3+ (1-dist)*0.4).toFixed(2)); rim.setAttribute("fill","none");
+      rim.setAttribute("filter","url(#lavaGlow)");
+      g.appendChild(rim);
+      spikes.appendChild(g);
+    }
+
+    // ---- flames ----
+    const flames=document.getElementById("flames");
+    for(let i=0;i<16;i++){
+      const fx=R(500,2060), fh=R(90,340), fw=R(40,110);
+      const near=1-Math.abs(fx-1280)/900;
+      const fy=1440;
+      const p=document.createElementNS(NS,"path");
+      p.setAttribute("d",`M${fx-fw/2},${fy} Q${fx-fw*0.2},${fy-fh*0.6} ${fx},${fy-fh} Q${fx+fw*0.2},${fy-fh*0.6} ${fx+fw/2},${fy} Z`);
+      p.setAttribute("fill","url(#fireGrad)"); p.setAttribute("filter","url(#flame)");
+      p.setAttribute("opacity",(0.35+Math.max(0,near)*0.5).toFixed(2));
+      flames.appendChild(p);
+    }
+
+    // ---- smoke ----
+    const smoke=document.getElementById("smoke");
+    for(let i=0;i<4;i++){
+      const c=document.createElementNS(NS,"ellipse");
+      c.setAttribute("cx",R(600,1960)); c.setAttribute("cy",R(720,980));
+      c.setAttribute("rx",R(300,520)); c.setAttribute("ry",R(160,260));
+      const v=9+(Math.random()*8|0);
+      c.setAttribute("fill",`rgba(${v},${v-2},${v-4},0.3)`);
+      c.setAttribute("filter","url(#softer)"); smoke.appendChild(c);
+    }
+
+    // ---- ash ----
+    const ash=document.getElementById("ash");
+    for(let i=0;i<70;i++){
+      const cx=R(140,2420), cy=R(300,1200), r=R(0.8,3);
+      const g=document.createElementNS(NS,"circle");
+      g.setAttribute("cx",cx);g.setAttribute("cy",cy);g.setAttribute("r",r*2.2);
+      g.setAttribute("fill",Math.random()>0.5?"#ffcf8a":"#ff8a34");
+      g.setAttribute("opacity",R(0.1,0.4).toFixed(2));
+      g.setAttribute("filter","url(#soft)");g.style.mixBlendMode="screen";ash.appendChild(g);
+      const c=document.createElementNS(NS,"circle");
+      c.setAttribute("cx",cx);c.setAttribute("cy",cy);c.setAttribute("r",r*0.55);
+      c.setAttribute("fill","#fff0d0");c.setAttribute("opacity",R(0.3,0.8).toFixed(2));
+      c.style.mixBlendMode="screen";ash.appendChild(c);
+    }
+  </script>
+</body></html>
