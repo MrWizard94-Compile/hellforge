@@ -8,6 +8,13 @@ const {
   layoutClass,
   buildShellArgs,
   gaugeHeight,
+  mergeSettings,
+  commandFinished,
+  shouldNotify,
+  broadcastTargets,
+  nextActiveAfterClose,
+  BUSY_MIN_MS,
+  IDLE_MS,
 } = require("../renderer/core.js");
 
 test("fuzzy: empty query matches everything with score 1", () => {
@@ -114,4 +121,64 @@ test("gaugeHeight clamps to 4..100", () => {
   assert.equal(gaugeHeight(50), 50);
   assert.equal(gaugeHeight(250), 100);
   assert.equal(gaugeHeight(NaN), 4);
+});
+
+test("mergeSettings: defaults fill missing, saved overrides", () => {
+  const d = { shell: "pwsh.exe", fontSize: 14.5, glass: 50, sound: true };
+  assert.deepEqual(mergeSettings(d, null), d);
+  assert.equal(mergeSettings(d, '{"fontSize":18}').fontSize, 18);
+  assert.equal(mergeSettings(d, '{"fontSize":18}').shell, "pwsh.exe");
+});
+
+test("mergeSettings: malformed JSON falls back to defaults", () => {
+  const d = { a: 1 };
+  assert.deepEqual(mergeSettings(d, "{not json"), d);
+  assert.deepEqual(mergeSettings(d, "null"), d);
+  assert.deepEqual(mergeSettings(d, "42"), d);
+});
+
+test("commandFinished: busy then idle past thresholds is finished", () => {
+  const now = 100000;
+  const f = { busy: true, busyStart: now - 5000, lastData: now - IDLE_MS - 100 };
+  assert.equal(commandFinished(f, now), true);
+});
+
+test("commandFinished: not finished while still receiving output", () => {
+  const now = 100000;
+  const f = { busy: true, busyStart: now - 5000, lastData: now - 200 };
+  assert.equal(commandFinished(f, now), false);
+});
+
+test("commandFinished: short commands don't notify", () => {
+  const now = 100000;
+  const f = { busy: true, busyStart: now - 1000, lastData: now - IDLE_MS - 100 };
+  assert.equal(commandFinished(f, now), false); // ran < BUSY_MIN_MS
+});
+
+test("commandFinished: not-busy forge is never finished", () => {
+  assert.equal(commandFinished({ busy: false }, 1), false);
+  assert.equal(commandFinished(null, 1), false);
+});
+
+test("shouldNotify: suppressed only when watching the focused visible pane", () => {
+  assert.equal(shouldNotify(2, 2, [1, 2], false), false); // watching → no notify
+  assert.equal(shouldNotify(2, 2, [1, 2], true), true); // window hidden → notify
+  assert.equal(shouldNotify(2, 1, [1, 2], false), true); // focused elsewhere → notify
+  assert.equal(shouldNotify(2, 2, [1, 3], false), true); // not visible → notify
+});
+
+test("broadcastTargets: off → self, on+visible → all visible, on+hidden → self", () => {
+  assert.deepEqual(broadcastTargets(false, 2, [1, 2, 3]), [2]);
+  assert.deepEqual(broadcastTargets(true, 2, [1, 2, 3]), [1, 2, 3]);
+  assert.deepEqual(broadcastTargets(true, 9, [1, 2, 3]), [9]);
+});
+
+test("nextActiveAfterClose: picks neighbor, clamps, null when empty", () => {
+  assert.equal(nextActiveAfterClose([10, 20, 30], 1), 20);
+  assert.equal(nextActiveAfterClose([10, 20], 5), 20); // clamps to last
+  assert.equal(nextActiveAfterClose([], 0), null);
+});
+
+test("threshold constants are sane", () => {
+  assert.ok(BUSY_MIN_MS > IDLE_MS);
 });

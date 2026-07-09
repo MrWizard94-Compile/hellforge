@@ -1,66 +1,97 @@
-<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<link rel="stylesheet" href="fonts.css">
-<link rel="stylesheet" href="style.css">
-<style>
-.mockterm { height:100%; font-family:'Cascadia Code',Consolas,monospace; font-size:14px; line-height:1.5; color:#f0e6d4; padding:4px; text-shadow:0 1px 3px rgba(0,0,0,0.9); }
-.mockterm .p { color:#ff9440; } .mockterm .g { color:#a3c76d; } .mockterm .b { color:#7f9fd1; } .mockterm .d { color:#8a7f72; }
-</style></head>
-<body>
-  <div id="titlebar">
-    <div id="brand">
-      <span id="sigil">&#9879;</span>
-      <span id="title">HELL<em>FORGE</em></span>
-      <span id="byline">WPAI &middot; forged, not launched</span>
-    </div>
-    <div id="crest"></div>
-    <div id="win-controls"><button>&#8210;</button><button>&#9723;</button><button id="btn-close">&#10005;</button></div>
-  </div>
-  <div id="tabbar">
-    <div id="tabs">
-      <div class="tab active"><span class="flame">&#128293;</span><span>Claude 1</span><span class="x">×</span></div>
-      <div class="tab"><span class="flame">⚒</span><span>Forge 2</span><span class="x">×</span></div>
-    </div>
-    <div id="summon"><button>&#9874; Forge</button><button>&#128293; Summon Claude</button></div>
-  </div>
-  <div id="main">
-    <div id="sidebar">
-      <div class="slot">
-        <div class="slot-skull">&#9760;</div>
-        <div class="slot-label">FORGES</div>
-        <div class="slot-count">2</div>
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="fonts.css" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      .mockterm {
+        height: 100%;
+        font-family: "Cascadia Code", Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        color: #f0e6d4;
+        padding: 4px;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      }
+      .mockterm .p {
+        color: #ff9440;
+      }
+      .mockterm .g {
+        color: #a3c76d;
+      }
+      .mockterm .b {
+        color: #7f9fd1;
+      }
+      .mockterm .d {
+        color: #8a7f72;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="titlebar">
+      <div id="brand">
+        <span id="sigil">&#9879;</span>
+        <span id="title">HELL<em>FORGE</em></span>
+        <span id="byline">WPAI &middot; forged, not launched</span>
       </div>
-      <div class="rune">&#5809;</div>
-      <div class="rune">&#5792;</div>
-      <div class="rune">&#5815;</div>
-      <div class="gauge">
-        <div class="gauge-label">HELLFIRE<br>PRESSURE</div>
-        <div class="gauge-tube"><div class="gauge-fill" style="height:62%"></div></div>
-        <div class="gauge-val">62</div>
+      <div id="crest"></div>
+      <div id="win-controls">
+        <button>&#8210;</button><button>&#9723;</button><button id="btn-close">&#10005;</button>
       </div>
     </div>
-    <div id="stage">
-      <div id="drips">
-        <div class="drip" style="left:14%;height:28px"></div>
-        <div class="drip" style="left:33%;height:34px"></div>
-        <div class="drip" style="left:52%;height:20px"></div>
-        <div class="drip" style="left:71%;height:31px"></div>
-        <div class="drip" style="left:88%;height:24px"></div>
+    <div id="tabbar">
+      <div id="tabs">
+        <div class="tab active">
+          <span class="flame">&#128293;</span><span>Claude 1</span><span class="x">×</span>
+        </div>
+        <div class="tab">
+          <span class="flame">⚒</span><span>Forge 2</span><span class="x">×</span>
+        </div>
       </div>
-      <div class="term-holder active">
-        <div class="mockterm">
-<span class="p">PS C:\WPAI&gt;</span> git status<br>
-<span class="d">On branch main. Your branch is up to date.</span><br>
-<span class="g">nothing to commit, working tree clean</span><br><br>
-<span class="p">PS C:\WPAI&gt;</span> claude<br>
-<span class="b">&#9879; Claude Code</span> <span class="d">— the forge is lit. What are we building?</span><br>
-<span style="color:#ff7a26">&gt;</span> <span style="background:#ff7a26;color:#0c0907">&nbsp;</span><br>
+      <div id="summon"><button>&#9874; Forge</button><button>&#128293; Summon Claude</button></div>
+    </div>
+    <div id="main">
+      <div id="sidebar">
+        <div class="slot">
+          <div class="slot-skull">&#9760;</div>
+          <div class="slot-label">FORGES</div>
+          <div class="slot-count">2</div>
+        </div>
+        <div class="rune">&#5809;</div>
+        <div class="rune">&#5792;</div>
+        <div class="rune">&#5815;</div>
+        <div class="gauge">
+          <div class="gauge-label">HELLFIRE<br />PRESSURE</div>
+          <div class="gauge-tube"><div class="gauge-fill" style="height: 62%"></div></div>
+          <div class="gauge-val">62</div>
+        </div>
+      </div>
+      <div id="stage">
+        <div id="drips">
+          <div class="drip" style="left: 14%; height: 28px"></div>
+          <div class="drip" style="left: 33%; height: 34px"></div>
+          <div class="drip" style="left: 52%; height: 20px"></div>
+          <div class="drip" style="left: 71%; height: 31px"></div>
+          <div class="drip" style="left: 88%; height: 24px"></div>
+        </div>
+        <div class="term-holder active">
+          <div class="mockterm">
+            <span class="p">PS C:\WPAI&gt;</span> git status<br />
+            <span class="d">On branch main. Your branch is up to date.</span><br />
+            <span class="g">nothing to commit, working tree clean</span><br /><br />
+            <span class="p">PS C:\WPAI&gt;</span> claude<br />
+            <span class="b">&#9879; Claude Code</span>
+            <span class="d">— the forge is lit. What are we building?</span><br />
+            <span style="color: #ff7a26">&gt;</span>
+            <span style="background: #ff7a26; color: #0c0907">&nbsp;</span><br />
+          </div>
         </div>
       </div>
     </div>
-  </div>
-  <div id="statusbar">
-    <span id="status-left">WPAI &middot; THE FORGE IS LIT</span>
-    <span id="status-right">2 fires burning · 9:47 AM</span>
-  </div>
-</body></html>
+    <div id="statusbar">
+      <span id="status-left">WPAI &middot; THE FORGE IS LIT</span>
+      <span id="status-right">2 fires burning · 9:47 AM</span>
+    </div>
+  </body>
+</html>

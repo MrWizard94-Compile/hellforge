@@ -1,98 +1,162 @@
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-  *{margin:0;padding:0} html,body{width:600px;height:600px;overflow:hidden;background:transparent;}
-</style></head>
-<body>
-<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <!-- forged iron: dark metal with hammered relief -->
-    <filter id="iron" x="-5%" y="-5%" width="110%" height="110%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.045 0.06" numOctaves="4" seed="6" result="n"/>
-      <feDiffuseLighting in="n" surfaceScale="2.6" diffuseConstant="1.15" lighting-color="#7a6552" result="lit">
-        <feDistantLight azimuth="235" elevation="58"/>
-      </feDiffuseLighting>
-      <feColorMatrix in="lit" type="matrix"
-        values="0.30 0 0 0 0.012
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 600px;
+        height: 600px;
+        overflow: hidden;
+        background: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- forged iron: dark metal with hammered relief -->
+        <filter id="iron" x="-5%" y="-5%" width="110%" height="110%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.045 0.06"
+            numOctaves="4"
+            seed="6"
+            result="n"
+          />
+          <feDiffuseLighting
+            in="n"
+            surfaceScale="2.6"
+            diffuseConstant="1.15"
+            lighting-color="#7a6552"
+            result="lit"
+          >
+            <feDistantLight azimuth="235" elevation="58" />
+          </feDiffuseLighting>
+          <feColorMatrix
+            in="lit"
+            type="matrix"
+            values="0.30 0 0 0 0.012
                 0 0.28 0 0 0.010
                 0 0 0.27 0 0.010
-                0 0 0 0 1" result="metal"/>
-      <feComposite in="metal" in2="SourceAlpha" operator="in"/>
-    </filter>
-    <filter id="emberGlow"><feGaussianBlur stdDeviation="2.5"/></filter>
-    <radialGradient id="boss" cx="38%" cy="34%" r="70%">
-      <stop offset="0%" stop-color="#5a4838"/>
-      <stop offset="55%" stop-color="#2a2018"/>
-      <stop offset="100%" stop-color="#0e0906"/>
-    </radialGradient>
-    <radialGradient id="rivet" cx="36%" cy="32%" r="70%">
-      <stop offset="0%" stop-color="#8a7460"/>
-      <stop offset="60%" stop-color="#3a2c22"/>
-      <stop offset="100%" stop-color="#100a06"/>
-    </radialGradient>
+                0 0 0 0 1"
+            result="metal"
+          />
+          <feComposite in="metal" in2="SourceAlpha" operator="in" />
+        </filter>
+        <filter id="emberGlow"><feGaussianBlur stdDeviation="2.5" /></filter>
+        <radialGradient id="boss" cx="38%" cy="34%" r="70%">
+          <stop offset="0%" stop-color="#5a4838" />
+          <stop offset="55%" stop-color="#2a2018" />
+          <stop offset="100%" stop-color="#0e0906" />
+        </radialGradient>
+        <radialGradient id="rivet" cx="36%" cy="32%" r="70%">
+          <stop offset="0%" stop-color="#8a7460" />
+          <stop offset="60%" stop-color="#3a2c22" />
+          <stop offset="100%" stop-color="#100a06" />
+        </radialGradient>
 
-    <!-- ===== corner ornament (top-left, kept fully inside a 120px slice) ===== -->
-    <g id="corner">
-      <!-- arm along top -->
-      <path d="M12,12 L104,12 L116,24 L100,46 L44,46 L44,52 L12,52 Z" fill="#1a120c" filter="url(#iron)"/>
-      <!-- arm along left -->
-      <path d="M12,12 L12,104 L24,116 L46,100 L46,44 L52,44 L52,12 Z" fill="#1a120c" filter="url(#iron)"/>
-      <!-- inner ember rim on both arms -->
-      <path d="M52,46 L100,46 M46,52 L46,100" stroke="#ff8a34" stroke-width="2" opacity="0.5" filter="url(#emberGlow)"/>
-      <!-- corner boss -->
-      <path d="M5,5 L84,5 L100,21 L100,58 L58,100 L21,100 L5,84 Z" fill="url(#boss)" stroke="#000" stroke-width="1.5"/>
-      <path d="M5,5 L84,5 L100,21" fill="none" stroke="#8a7460" stroke-width="1.4" opacity="0.55"/>
-      <!-- inward barb/spike from boss -->
-      <path d="M58,100 L112,112 L100,58 Z" fill="#140d09" filter="url(#iron)"/>
-      <path d="M100,58 L112,112" stroke="#ff9a44" stroke-width="1.6" opacity="0.45" filter="url(#emberGlow)"/>
-      <!-- arm-end barbs -->
-      <path d="M104,12 L116,24 L100,46 Z" fill="#140d09" filter="url(#iron)"/>
-      <path d="M12,104 L24,116 L46,100 Z" fill="#140d09" filter="url(#iron)"/>
-      <!-- rivets -->
-      <circle cx="28" cy="28" r="8.5" fill="url(#rivet)"/>
-      <circle cx="72" cy="28" r="5" fill="url(#rivet)"/>
-      <circle cx="28" cy="72" r="5" fill="url(#rivet)"/>
-    </g>
-  </defs>
+        <!-- ===== corner ornament (top-left, kept fully inside a 120px slice) ===== -->
+        <g id="corner">
+          <!-- arm along top -->
+          <path
+            d="M12,12 L104,12 L116,24 L100,46 L44,46 L44,52 L12,52 Z"
+            fill="#1a120c"
+            filter="url(#iron)"
+          />
+          <!-- arm along left -->
+          <path
+            d="M12,12 L12,104 L24,116 L46,100 L46,44 L52,44 L52,12 Z"
+            fill="#1a120c"
+            filter="url(#iron)"
+          />
+          <!-- inner ember rim on both arms -->
+          <path
+            d="M52,46 L100,46 M46,52 L46,100"
+            stroke="#ff8a34"
+            stroke-width="2"
+            opacity="0.5"
+            filter="url(#emberGlow)"
+          />
+          <!-- corner boss -->
+          <path
+            d="M5,5 L84,5 L100,21 L100,58 L58,100 L21,100 L5,84 Z"
+            fill="url(#boss)"
+            stroke="#000"
+            stroke-width="1.5"
+          />
+          <path
+            d="M5,5 L84,5 L100,21"
+            fill="none"
+            stroke="#8a7460"
+            stroke-width="1.4"
+            opacity="0.55"
+          />
+          <!-- inward barb/spike from boss -->
+          <path d="M58,100 L112,112 L100,58 Z" fill="#140d09" filter="url(#iron)" />
+          <path
+            d="M100,58 L112,112"
+            stroke="#ff9a44"
+            stroke-width="1.6"
+            opacity="0.45"
+            filter="url(#emberGlow)"
+          />
+          <!-- arm-end barbs -->
+          <path d="M104,12 L116,24 L100,46 Z" fill="#140d09" filter="url(#iron)" />
+          <path d="M12,104 L24,116 L46,100 Z" fill="#140d09" filter="url(#iron)" />
+          <!-- rivets -->
+          <circle cx="28" cy="28" r="8.5" fill="url(#rivet)" />
+          <circle cx="72" cy="28" r="5" fill="url(#rivet)" />
+          <circle cx="28" cy="72" r="5" fill="url(#rivet)" />
+        </g>
+      </defs>
 
-  <!-- ===== edge bands (tileable middle) ===== -->
-  <!-- top -->
-  <g>
-    <rect x="0" y="16" width="600" height="34" fill="#160f0a" filter="url(#iron)"/>
-    <rect x="0" y="16" width="600" height="2" fill="#000"/>
-    <rect x="0" y="48" width="600" height="1.5" fill="#4a3524"/>
-    <line x1="0" y1="49" x2="600" y2="49" stroke="#ff8a34" stroke-width="1" opacity="0.28"/>
-  </g>
-  <!-- bottom -->
-  <g>
-    <rect x="0" y="550" width="600" height="34" fill="#160f0a" filter="url(#iron)"/>
-    <rect x="0" y="582" width="600" height="2" fill="#000"/>
-    <rect x="0" y="551" width="600" height="1.5" fill="#4a3524"/>
-    <line x1="0" y1="551" x2="600" y2="551" stroke="#ff8a34" stroke-width="1" opacity="0.28"/>
-  </g>
-  <!-- left -->
-  <g>
-    <rect x="16" y="0" width="34" height="600" fill="#160f0a" filter="url(#iron)"/>
-    <rect x="16" y="0" width="2" height="600" fill="#000"/>
-    <rect x="48" y="0" width="1.5" height="600" fill="#4a3524"/>
-    <line x1="49" y1="0" x2="49" y2="600" stroke="#ff8a34" stroke-width="1" opacity="0.28"/>
-  </g>
-  <!-- right -->
-  <g>
-    <rect x="550" y="0" width="34" height="600" fill="#160f0a" filter="url(#iron)"/>
-    <rect x="582" y="0" width="2" height="600" fill="#000"/>
-    <rect x="551" y="0" width="1.5" height="600" fill="#4a3524"/>
-    <line x1="551" y1="0" x2="551" y2="600" stroke="#ff8a34" stroke-width="1" opacity="0.28"/>
-  </g>
-  <!-- edge rivets on the tileable middle band (spaced to tile with 'round') -->
-  <g fill="url(#rivet)">
-    <circle cx="300" cy="33" r="5"/><circle cx="300" cy="567" r="5"/>
-    <circle cx="33" cy="300" r="5"/><circle cx="567" cy="300" r="5"/>
-  </g>
+      <!-- ===== edge bands (tileable middle) ===== -->
+      <!-- top -->
+      <g>
+        <rect x="0" y="16" width="600" height="34" fill="#160f0a" filter="url(#iron)" />
+        <rect x="0" y="16" width="600" height="2" fill="#000" />
+        <rect x="0" y="48" width="600" height="1.5" fill="#4a3524" />
+        <line x1="0" y1="49" x2="600" y2="49" stroke="#ff8a34" stroke-width="1" opacity="0.28" />
+      </g>
+      <!-- bottom -->
+      <g>
+        <rect x="0" y="550" width="600" height="34" fill="#160f0a" filter="url(#iron)" />
+        <rect x="0" y="582" width="600" height="2" fill="#000" />
+        <rect x="0" y="551" width="600" height="1.5" fill="#4a3524" />
+        <line x1="0" y1="551" x2="600" y2="551" stroke="#ff8a34" stroke-width="1" opacity="0.28" />
+      </g>
+      <!-- left -->
+      <g>
+        <rect x="16" y="0" width="34" height="600" fill="#160f0a" filter="url(#iron)" />
+        <rect x="16" y="0" width="2" height="600" fill="#000" />
+        <rect x="48" y="0" width="1.5" height="600" fill="#4a3524" />
+        <line x1="49" y1="0" x2="49" y2="600" stroke="#ff8a34" stroke-width="1" opacity="0.28" />
+      </g>
+      <!-- right -->
+      <g>
+        <rect x="550" y="0" width="34" height="600" fill="#160f0a" filter="url(#iron)" />
+        <rect x="582" y="0" width="2" height="600" fill="#000" />
+        <rect x="551" y="0" width="1.5" height="600" fill="#4a3524" />
+        <line x1="551" y1="0" x2="551" y2="600" stroke="#ff8a34" stroke-width="1" opacity="0.28" />
+      </g>
+      <!-- edge rivets on the tileable middle band (spaced to tile with 'round') -->
+      <g fill="url(#rivet)">
+        <circle cx="300" cy="33" r="5" />
+        <circle cx="300" cy="567" r="5" />
+        <circle cx="33" cy="300" r="5" />
+        <circle cx="567" cy="300" r="5" />
+      </g>
 
-  <!-- ===== four corner ornaments ===== -->
-  <use href="#corner"/>
-  <use href="#corner" transform="translate(600,0) scale(-1,1)"/>
-  <use href="#corner" transform="translate(0,600) scale(1,-1)"/>
-  <use href="#corner" transform="translate(600,600) scale(-1,-1)"/>
-</svg>
-</body></html>
+      <!-- ===== four corner ornaments ===== -->
+      <use href="#corner" />
+      <use href="#corner" transform="translate(600,0) scale(-1,1)" />
+      <use href="#corner" transform="translate(0,600) scale(1,-1)" />
+      <use href="#corner" transform="translate(600,600) scale(-1,-1)" />
+    </svg>
+  </body>
+</html>

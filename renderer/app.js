@@ -17,9 +17,9 @@ let layout = 1; // 1 | 2 | 4 visible panes
 let broadcast = false; // send input to all visible panes
 
 // ---- persisted settings ----
-const settings = Object.assign(
+const settings = HFCore.mergeSettings(
   { shell: "pwsh.exe", fontSize: 14.5, glass: 50, sound: true },
-  JSON.parse(localStorage.getItem("hf-settings") || "{}")
+  localStorage.getItem("hf-settings")
 );
 function saveSettings() {
   localStorage.setItem("hf-settings", JSON.stringify(settings));
@@ -113,10 +113,8 @@ async function summon(kind, o = {}) {
 
   holder.addEventListener("mousedown", () => focusPane(id));
   term.onData((data) => {
-    if (broadcast && visibleIds().includes(id)) {
-      for (const pid of visibleIds()) window.hellforge.write(pid, data);
-    } else {
-      window.hellforge.write(id, data);
+    for (const pid of HFCore.broadcastTargets(broadcast, id, visibleIds())) {
+      window.hellforge.write(pid, data);
     }
   });
   term.onResize(({ cols, rows }) => window.hellforge.resize(id, cols, rows));
@@ -193,8 +191,9 @@ function extinguish(id) {
   const oi = order.indexOf(id);
   if (oi >= 0) order.splice(oi, 1);
   if (activeId === id) {
-    if (order.length) {
-      activeId = order[Math.min(oi, order.length - 1)];
+    const nxt = HFCore.nextActiveAfterClose(order, oi);
+    if (nxt != null) {
+      activeId = nxt;
       renderLayout();
       f_focus(activeId);
     } else {
@@ -239,11 +238,14 @@ if (window.hellforge) {
 setInterval(() => {
   const now = Date.now();
   for (const [id, f] of forges) {
-    if (f.busy && now - (f.lastData || 0) > 1400) {
-      const dur = (f.lastData || 0) - (f.busyStart || 0);
+    if (HFCore.commandFinished(f, now)) {
       f.busy = false;
       f.busyBytes = 0;
-      if (dur > 2500) sacrificeComplete(id);
+      sacrificeComplete(id);
+    } else if (f.busy && now - (f.lastData || 0) > HFCore.IDLE_MS) {
+      // went idle but ran too briefly to be worth a notification
+      f.busy = false;
+      f.busyBytes = 0;
     }
   }
 }, 700);
@@ -251,8 +253,7 @@ setInterval(() => {
 function sacrificeComplete(id) {
   const f = forges.get(id);
   if (!f) return;
-  const watching = !document.hidden && activeId === id && visibleIds().includes(id);
-  if (watching) return;
+  if (!HFCore.shouldNotify(id, activeId, visibleIds(), document.hidden)) return;
   f.tab.classList.add("done");
   playClang();
   flashStatus(`⚒ SACRIFICE COMPLETE · ${f.title}`);

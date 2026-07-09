@@ -108,5 +108,71 @@
     return Math.max(4, Math.min(100, Number(cpu) || 0));
   }
 
-  return { fuzzy, rankItems, visibleIds, layoutClass, buildShellArgs, gaugeHeight };
+  /**
+   * Merge persisted settings over defaults. `savedJson` is the raw
+   * localStorage string (or null); malformed JSON falls back to defaults.
+   * Unknown keys in saved data are preserved; missing keys take the default.
+   */
+  function mergeSettings(defaults, savedJson) {
+    let saved;
+    try {
+      saved = savedJson ? JSON.parse(savedJson) : {};
+    } catch {
+      saved = {};
+    }
+    if (saved == null || typeof saved !== "object") saved = {};
+    return Object.assign({}, defaults, saved);
+  }
+
+  /**
+   * "Sacrifice complete" decision: a forge that was busy (BUSY_MIN_MS of
+   * output) and has since gone quiet (IDLE_MS with no output) is considered
+   * finished. Pure given the forge's activity timestamps and `now`.
+   */
+  const BUSY_MIN_MS = 2500;
+  const IDLE_MS = 1400;
+  function commandFinished(forge, now) {
+    if (!forge || !forge.busy) return false;
+    const idle = now - (forge.lastData || 0);
+    if (idle <= IDLE_MS) return false;
+    const dur = (forge.lastData || 0) - (forge.busyStart || 0);
+    return dur > BUSY_MIN_MS;
+  }
+
+  /**
+   * Whether a finished forge should raise a notification: only when the user
+   * isn't already watching it (window hidden, or it isn't the focused +
+   * visible pane).
+   */
+  function shouldNotify(id, activeId, visible, hidden) {
+    const watching = !hidden && activeId === id && visible.indexOf(id) !== -1;
+    return !watching;
+  }
+
+  /** PTY ids that an input event should be written to (broadcast fans out). */
+  function broadcastTargets(broadcast, id, visible) {
+    return broadcast && visible.indexOf(id) !== -1 ? visible.slice() : [id];
+  }
+
+  /** Id to focus after closing the pane at `closedIndex` (order already spliced). */
+  function nextActiveAfterClose(order, closedIndex) {
+    if (!order.length) return null;
+    return order[Math.min(closedIndex, order.length - 1)];
+  }
+
+  return {
+    fuzzy,
+    rankItems,
+    visibleIds,
+    layoutClass,
+    buildShellArgs,
+    gaugeHeight,
+    mergeSettings,
+    commandFinished,
+    shouldNotify,
+    broadcastTargets,
+    nextActiveAfterClose,
+    BUSY_MIN_MS,
+    IDLE_MS,
+  };
 });

@@ -1,128 +1,152 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; img-src 'self' data:" />
-  <link rel="stylesheet" href="fonts.css" />
-  <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css" />
-  <link rel="stylesheet" href="style.css" />
-  <title>HellForge</title>
-</head>
-<body>
-  <div id="titlebar">
-    <div id="brand">
-      <span id="sigil">&#9879;</span>
-      <span id="title">HELL<em>FORGE</em></span>
-      <span id="byline">WPAI &middot; forged, not launched</span>
-    </div>
-    <div id="crest"></div>
-    <div id="win-controls">
-      <button id="btn-min" title="Minimize">&#8210;</button>
-      <button id="btn-max" title="Maximize">&#9723;</button>
-      <button id="btn-close" title="Close">&#10005;</button>
-    </div>
-  </div>
-
-  <div id="tabbar">
-    <div id="tabs"></div>
-    <div id="layout-controls">
-      <button id="lay-1" class="lay active" title="Single pane (Alt+1)">&#9633;</button>
-      <button id="lay-2" class="lay" title="Split in two (Alt+2)">&#9707;</button>
-      <button id="lay-4" class="lay" title="Grid of four (Alt+4)">&#9638;</button>
-      <span class="ctl-div"></span>
-      <button id="broadcast-btn" title="Broadcast input to all visible panes">&#8694;</button>
-      <button id="sound-btn" class="active" title="Sound: clang on command finish">&#9834;</button>
-      <button id="rumble-btn" title="Forge rumble ambient">&#8767;</button>
-      <span class="ctl-div"></span>
-      <button id="settings-btn" title="Settings">&#9881;&#65038;</button>
-    </div>
-    <div id="summon">
-      <button id="new-forge" title="New PowerShell (Ctrl+T)">&#9874; Forge</button>
-      <button id="summon-claude" title="Summon Claude Code">&#128770; Summon Claude</button>
-    </div>
-  </div>
-
-  <div id="main">
-    <div id="sidebar">
-      <div class="slot" id="slot-forges">
-        <div class="slot-skull">&#9760;</div>
-        <div class="slot-label">FORGES</div>
-        <div class="slot-count" id="forge-count">0</div>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; img-src 'self' data:"
+    />
+    <link rel="stylesheet" href="fonts.css" />
+    <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="style.css" />
+    <title>HellForge</title>
+  </head>
+  <body>
+    <div id="titlebar">
+      <div id="brand">
+        <span id="sigil">&#9879;</span>
+        <span id="title">HELL<em>FORGE</em></span>
+        <span id="byline">WPAI &middot; forged, not launched</span>
       </div>
-      <div class="rune" id="rune-forge" title="New Forge">&#5809;</div>
-      <div class="rune" id="rune-claude" title="Summon Claude">&#5792;</div>
-      <div class="rune" id="rune-clear" title="Clear (Ctrl+L)">&#5815;</div>
-      <div class="gauge">
-        <div class="gauge-label">HELLFIRE<br>PRESSURE</div>
-        <div class="gauge-tube"><div class="gauge-fill" id="gauge-fill"></div></div>
-        <div class="gauge-val" id="gauge-val">—</div>
+      <div id="crest"></div>
+      <div id="win-controls">
+        <button id="btn-min" title="Minimize">&#8210;</button>
+        <button id="btn-max" title="Maximize">&#9723;</button>
+        <button id="btn-close" title="Close">&#10005;</button>
       </div>
     </div>
-    <div id="stage">
-      <div id="drips"></div>
-      <div id="panes" class="l1"></div>
+
+    <div id="tabbar">
+      <div id="tabs"></div>
+      <div id="layout-controls">
+        <button id="lay-1" class="lay active" title="Single pane (Alt+1)">&#9633;</button>
+        <button id="lay-2" class="lay" title="Split in two (Alt+2)">&#9707;</button>
+        <button id="lay-4" class="lay" title="Grid of four (Alt+4)">&#9638;</button>
+        <span class="ctl-div"></span>
+        <button id="broadcast-btn" title="Broadcast input to all visible panes">&#8694;</button>
+        <button id="sound-btn" class="active" title="Sound: clang on command finish">
+          &#9834;
+        </button>
+        <button id="rumble-btn" title="Forge rumble ambient">&#8767;</button>
+        <span class="ctl-div"></span>
+        <button id="settings-btn" title="Settings">&#9881;&#65038;</button>
+      </div>
+      <div id="summon">
+        <button id="new-forge" title="New PowerShell (Ctrl+T)">&#9874; Forge</button>
+        <button id="summon-claude" title="Summon Claude Code">&#128770; Summon Claude</button>
+      </div>
     </div>
-  </div>
 
-  <canvas id="embers"></canvas>
-
-  <!-- command palette (Ctrl+P) -->
-  <div id="palette" class="hidden">
-    <div id="palette-box">
-      <input id="palette-input" type="text" placeholder="summon a project, cast a spell, or command the forge…" autocomplete="off" spellcheck="false" />
-      <div id="palette-list"></div>
-      <div id="palette-hint">↑↓ navigate · ⏎ invoke · esc banish</div>
+    <div id="main">
+      <div id="sidebar">
+        <div class="slot" id="slot-forges">
+          <div class="slot-skull">&#9760;</div>
+          <div class="slot-label">FORGES</div>
+          <div class="slot-count" id="forge-count">0</div>
+        </div>
+        <div class="rune" id="rune-forge" title="New Forge">&#5809;</div>
+        <div class="rune" id="rune-claude" title="Summon Claude">&#5792;</div>
+        <div class="rune" id="rune-clear" title="Clear (Ctrl+L)">&#5815;</div>
+        <div class="sidebar-flourish"><span class="flourish-rune">&#5817;</span></div>
+        <div class="gauge">
+          <div class="gauge-label">HELLFIRE<br />PRESSURE</div>
+          <div class="gauge-tube"><div class="gauge-fill" id="gauge-fill"></div></div>
+          <div class="gauge-val" id="gauge-val">—</div>
+        </div>
+      </div>
+      <div id="stage">
+        <div id="drips"></div>
+        <div id="panes" class="l1"></div>
+      </div>
     </div>
-  </div>
 
-  <!-- in-terminal search (Ctrl+F) -->
-  <div id="search" class="hidden">
-    <input id="search-input" type="text" placeholder="scry the forge…" autocomplete="off" spellcheck="false" />
-    <button id="search-prev" title="Previous (Shift+Enter)">&#9650;</button>
-    <button id="search-next" title="Next (Enter)">&#9660;</button>
-    <button id="search-close" title="Close (Esc)">&#10005;</button>
-  </div>
+    <canvas id="embers"></canvas>
 
-  <!-- settings -->
-  <div id="settings" class="hidden">
-    <div id="settings-box">
-      <div class="set-title">&#9881; FORGE SETTINGS</div>
-      <label class="set-row"><span>Default shell</span>
-        <select id="set-shell">
-          <option value="pwsh.exe">PowerShell 7 (pwsh)</option>
-          <option value="powershell.exe">Windows PowerShell</option>
-          <option value="cmd.exe">Command Prompt</option>
-          <option value="wsl.exe">WSL</option>
-          <option value="bash.exe">Git Bash</option>
-        </select>
-      </label>
-      <label class="set-row"><span>Font size</span>
-        <input id="set-font" type="range" min="10" max="24" step="0.5" />
-        <span id="set-font-val" class="set-val"></span>
-      </label>
-      <label class="set-row"><span>Glass opacity</span>
-        <input id="set-glass" type="range" min="0" max="90" step="5" />
-        <span id="set-glass-val" class="set-val"></span>
-      </label>
-      <label class="set-row"><span>Sound effects</span>
-        <input id="set-sound" type="checkbox" />
-      </label>
-      <div class="set-hint">Ctrl+P palette · Ctrl+F search · Ctrl+± zoom · Alt+1/2/4 layout · Ctrl+D split</div>
-      <button id="set-close">CLOSE THE GRIMOIRE</button>
+    <!-- command palette (Ctrl+P) -->
+    <div id="palette" class="hidden">
+      <div id="palette-box">
+        <input
+          id="palette-input"
+          type="text"
+          placeholder="summon a project, cast a spell, or command the forge…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div id="palette-list"></div>
+        <div id="palette-hint">↑↓ navigate · ⏎ invoke · esc banish</div>
+      </div>
     </div>
-  </div>
 
-  <div id="statusbar">
-    <span id="status-left">WPAI &middot; THE FORGE IS LIT</span>
-    <span id="status-right"></span>
-  </div>
+    <!-- in-terminal search (Ctrl+F) -->
+    <div id="search" class="hidden">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="scry the forge…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="search-prev" title="Previous (Shift+Enter)">&#9650;</button>
+      <button id="search-next" title="Next (Enter)">&#9660;</button>
+      <button id="search-close" title="Close (Esc)">&#10005;</button>
+    </div>
 
-  <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
-  <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
-  <script src="../node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
-  <script src="../node_modules/@xterm/addon-search/lib/addon-search.js"></script>
-  <script src="core.js"></script>
-  <script src="projects.js"></script>
-  <script src="app.js"></script>
-</body>
+    <!-- settings -->
+    <div id="settings" class="hidden">
+      <div id="settings-box">
+        <div class="set-title">&#9881; FORGE SETTINGS</div>
+        <label class="set-row"
+          ><span>Default shell</span>
+          <select id="set-shell">
+            <option value="pwsh.exe">PowerShell 7 (pwsh)</option>
+            <option value="powershell.exe">Windows PowerShell</option>
+            <option value="cmd.exe">Command Prompt</option>
+            <option value="wsl.exe">WSL</option>
+            <option value="bash.exe">Git Bash</option>
+          </select>
+        </label>
+        <label class="set-row"
+          ><span>Font size</span>
+          <input id="set-font" type="range" min="10" max="24" step="0.5" />
+          <span id="set-font-val" class="set-val"></span>
+        </label>
+        <label class="set-row"
+          ><span>Glass opacity</span>
+          <input id="set-glass" type="range" min="0" max="90" step="5" />
+          <span id="set-glass-val" class="set-val"></span>
+        </label>
+        <label class="set-row"
+          ><span>Sound effects</span>
+          <input id="set-sound" type="checkbox" />
+        </label>
+        <div class="set-hint">
+          Ctrl+P palette · Ctrl+F search · Ctrl+± zoom · Alt+1/2/4 layout · Ctrl+D split
+        </div>
+        <button id="set-close">CLOSE THE GRIMOIRE</button>
+      </div>
+    </div>
+
+    <div id="statusbar">
+      <span id="status-left">WPAI &middot; THE FORGE IS LIT</span>
+      <span id="status-right"></span>
+    </div>
+
+    <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
+    <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+    <script src="../node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
+    <script src="../node_modules/@xterm/addon-search/lib/addon-search.js"></script>
+    <script src="core.js"></script>
+    <script src="projects.js"></script>
+    <script src="app.js"></script>
+  </body>
 </html>
