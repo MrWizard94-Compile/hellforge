@@ -28,6 +28,7 @@ module.exports = [
         WebLinksAddon: "readonly",
         SearchAddon: "readonly",
         HFCore: "readonly",
+        HFCouncil: "readonly",
       },
     },
     rules: {
@@ -46,8 +47,12 @@ module.exports = [
         module: "writable",
         process: "readonly",
         __dirname: "readonly",
+        console: "readonly",
+        Buffer: "readonly",
         setInterval: "readonly",
         setTimeout: "readonly",
+        clearInterval: "readonly",
+        clearTimeout: "readonly",
       },
     },
     rules: {

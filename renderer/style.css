@@ -1222,6 +1222,235 @@ body {
   padding: 3px 6px;
 }
 
+/* ---------- The Council (multi-agent comms) ---------- */
+#council {
+  position: fixed;
+  inset: 0;
+  z-index: 650;
+  background: radial-gradient(ellipse at 50% 24%, rgba(30, 10, 4, 0.52), rgba(0, 0, 0, 0.82));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(3px);
+}
+#council.hidden {
+  display: none;
+}
+#council-box {
+  width: 720px;
+  max-width: 92vw;
+  height: 74vh;
+  max-height: 720px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(26, 17, 10, 0.98), rgba(12, 8, 5, 0.99));
+  border: 1px solid #5c3a1e;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 1px rgba(255, 122, 38, 0.12),
+    0 24px 70px rgba(0, 0, 0, 0.82),
+    inset 0 0 46px rgba(232, 69, 28, 0.07);
+  overflow: hidden;
+}
+.council-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(92, 58, 30, 0.5);
+  background: linear-gradient(180deg, rgba(58, 32, 14, 0.5), rgba(20, 12, 7, 0));
+}
+.council-title {
+  font-family: "Cinzel Decorative", "Cinzel", serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #ffb060;
+  text-shadow: 0 0 14px rgba(255, 122, 38, 0.4);
+}
+.council-ws {
+  flex: 1;
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  color: #7a6650;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.council-x {
+  cursor: pointer;
+  color: #b0946f;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+.council-x:hover {
+  color: #ff7a5c;
+}
+#council-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#council-log::-webkit-scrollbar {
+  width: 9px;
+}
+#council-log::-webkit-scrollbar-thumb {
+  background: #3a2412;
+  border-radius: 5px;
+}
+.council-empty {
+  margin: auto;
+  color: #6b5942;
+  font-family: "Cinzel", serif;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.7;
+}
+.council-msg {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid #4a3524;
+}
+.council-meta {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Cinzel", serif;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.council-icon {
+  font-size: 13px;
+}
+.council-from {
+  font-weight: 700;
+  color: #d8cdbb;
+}
+.council-arrow {
+  color: #6b5942;
+}
+.council-to {
+  color: #9a866b;
+}
+.council-time {
+  margin-left: auto;
+  font-family: "Consolas", monospace;
+  font-size: 9.5px;
+  color: #5c5044;
+}
+.council-text {
+  grid-column: 1 / 3;
+  font-family: "Consolas", monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #ece0cc;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.council-msg[data-role="director"] {
+  border-left-color: #ffcf8a;
+}
+.council-msg[data-role="director"] .council-from {
+  color: #ffcf8a;
+}
+.council-msg[data-role="orchestrator"] {
+  border-left-color: #ff7a26;
+}
+.council-msg[data-role="orchestrator"] .council-from {
+  color: #ff9a4d;
+}
+.council-msg[data-role="executor"] {
+  border-left-color: #7fd0ff;
+}
+.council-msg[data-role="executor"] .council-from {
+  color: #9ad8ff;
+}
+.council-msg[data-role="local"] {
+  border-left-color: #a3c76d;
+}
+.council-msg[data-role="local"] .council-from {
+  color: #b6d886;
+}
+.council-compose {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(92, 58, 30, 0.5);
+  background: rgba(12, 8, 5, 0.6);
+}
+#council-target {
+  flex: 0 0 auto;
+  max-width: 190px;
+  background: #1a120c;
+  color: #ecdfc8;
+  border: 1px solid #4a3524;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-family: "Cinzel", serif;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+#council-input {
+  flex: 1;
+  min-width: 0;
+  background: #140d08;
+  color: #f0e6d4;
+  border: 1px solid #4a3524;
+  border-radius: 6px;
+  padding: 9px 11px;
+  font-family: "Consolas", monospace;
+  font-size: 13px;
+}
+#council-input:focus {
+  outline: none;
+  border-color: var(--ember);
+  box-shadow: 0 0 12px rgba(255, 122, 38, 0.28);
+}
+#council-send {
+  flex: 0 0 auto;
+  padding: 0 18px;
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ffe4c4;
+  background: linear-gradient(180deg, rgba(232, 69, 28, 0.75), rgba(120, 32, 12, 0.9));
+  border: 1px solid var(--ember);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#council-send:hover {
+  box-shadow: 0 0 18px rgba(255, 122, 38, 0.5);
+  color: #fff;
+}
+.council-hint {
+  padding: 9px 16px 12px;
+  font-family: "Consolas", monospace;
+  font-size: 10px;
+  color: #7a6650;
+  line-height: 1.6;
+  border-top: 1px solid rgba(92, 58, 30, 0.25);
+}
+.council-hint code {
+  color: #ffcf8a;
+  background: rgba(255, 122, 38, 0.1);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
 /* ---------- embers ---------- */
 #embers {
   position: fixed;

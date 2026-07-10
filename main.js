@@ -5,9 +5,158 @@ const fs = require("fs");
 const { execFile } = require("child_process");
 const pty = require("@lydell/node-pty");
 const HFCore = require("./renderer/core.js");
+const HFCouncil = require("./renderer/council.js");
 
 let win;
 let stateFile;
+
+// ---- The Council: shared JSONL message bus ----
+const COUNCIL_WORKSPACE = "C:\\WPAI\\Workspace";
+const COUNCIL_DIR = path.join(COUNCIL_WORKSPACE, ".hellforge");
+const COUNCIL_BUS = path.join(COUNCIL_DIR, "bus.jsonl");
+let busOffset = 0;
+let busWatcher = null;
+let busWatchTimer = null;
+
+function ensureCouncilDirs() {
+  try {
+    fs.mkdirSync(COUNCIL_DIR, { recursive: true });
+    return { dir: COUNCIL_WORKSPACE, bus: COUNCIL_BUS };
+  } catch {
+    return { dir: "", bus: "" };
+  }
+}
+
+function broadcastCouncilMsg(msg) {
+  if (win && !win.isDestroyed()) {
+    try {
+      win.webContents.send("council:msg", msg);
+    } catch {
+      /* best-effort; ignore */
+    }
+  }
+}
+
+function flushBusWatch() {
+  try {
+    let size = 0;
+    try {
+      size = fs.statSync(COUNCIL_BUS).size;
+    } catch {
+      return;
+    }
+    if (size < busOffset) busOffset = 0;
+    if (size <= busOffset) return;
+
+    const fd = fs.openSync(COUNCIL_BUS, "r");
+    try {
+      const len = size - busOffset;
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, busOffset);
+      const chunk = buf.toString("utf8");
+      // Only advance past complete lines so a concurrent partial write is retried.
+      const lastNl = chunk.lastIndexOf("\n");
+      if (lastNl === -1) return;
+      const complete = chunk.slice(0, lastNl + 1);
+      busOffset += Buffer.byteLength(complete, "utf8");
+      const msgs = HFCouncil.parseBus(complete);
+      for (let i = 0; i < msgs.length; i++) broadcastCouncilMsg(msgs[i]);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    /* best-effort; ignore */
+  }
+}
+
+function startBusWatch() {
+  try {
+    ensureCouncilDirs();
+    try {
+      busOffset = fs.statSync(COUNCIL_BUS).size;
+    } catch {
+      busOffset = 0;
+    }
+    if (busWatcher) {
+      try {
+        busWatcher.close();
+      } catch {
+        /* best-effort; ignore */
+      }
+      busWatcher = null;
+    }
+    busWatcher = fs.watch(COUNCIL_DIR, (eventType, filename) => {
+      if (filename && filename !== "bus.jsonl") return;
+      if (busWatchTimer) clearTimeout(busWatchTimer);
+      busWatchTimer = setTimeout(() => {
+        busWatchTimer = null;
+        flushBusWatch();
+      }, 50);
+    });
+  } catch {
+    /* best-effort; ignore */
+  }
+}
+
+function stopBusWatch() {
+  if (busWatchTimer) {
+    try {
+      clearTimeout(busWatchTimer);
+    } catch {
+      /* best-effort; ignore */
+    }
+    busWatchTimer = null;
+  }
+  if (busWatcher) {
+    try {
+      busWatcher.close();
+    } catch {
+      /* best-effort; ignore */
+    }
+    busWatcher = null;
+  }
+}
+
+ipcMain.handle("council:workspace", () => {
+  try {
+    return ensureCouncilDirs();
+  } catch {
+    return { dir: "", bus: "" };
+  }
+});
+
+ipcMain.handle("council:post", (e, msg) => {
+  try {
+    ensureCouncilDirs();
+    const line = HFCouncil.serializeMsg(msg) + "\n";
+    fs.appendFileSync(COUNCIL_BUS, line, "utf8");
+    // Advance offset past our own write so the watcher does not double-emit.
+    try {
+      busOffset = fs.statSync(COUNCIL_BUS).size;
+    } catch {
+      /* best-effort; ignore */
+    }
+    const stored = HFCouncil.parseBus(HFCouncil.serializeMsg(msg))[0];
+    if (stored) broadcastCouncilMsg(stored);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("council:read", () => {
+  try {
+    let content = "";
+    try {
+      content = fs.readFileSync(COUNCIL_BUS, "utf8");
+    } catch {
+      content = "";
+    }
+    return HFCouncil.parseBus(content);
+  } catch {
+    return [];
+  }
+});
 function loadState() {
   try {
     return JSON.parse(fs.readFileSync(stateFile, "utf8"));
@@ -115,6 +264,8 @@ function createWindow() {
   win.on("maximize", () => win.webContents.send("win:state", true));
   win.on("unmaximize", () => win.webContents.send("win:state", false));
   win.on("close", saveState);
+  win.on("close", stopBusWatch);
+  startBusWatch();
 }
 
 app.whenReady().then(createWindow);
