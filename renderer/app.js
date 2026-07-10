@@ -275,13 +275,6 @@ let deckOpen = false;
 let lastStats = {};
 const deckEl = $("deck");
 
-function fmtUptime(s) {
-  if (!s) return "0m";
-  const h = Math.floor(s / 3600),
-    m = Math.floor((s % 3600) / 60);
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
-
 function renderDeckVitals() {
   const s = lastStats;
   const bar = (label, pct, detail) => {
@@ -299,7 +292,7 @@ function renderDeckVitals() {
     bar("Memory", s.mem, s.memUsedGB != null ? `${s.memUsedGB} / ${s.memTotalGB} GB` : "") +
     bar("Disk (C:)", s.diskPct, s.diskFreeGB != null ? `${s.diskFreeGB} GB free` : "") +
     `<div class="deck-stats">
-       <span class="deck-stat">FORGE LIT <b>${fmtUptime(s.uptime)}</b></span>
+       <span class="deck-stat">FORGE LIT <b>${HFCore.fmtUptime(s.uptime)}</b></span>
        <span class="deck-stat">FIRES <b>${forges.size}</b></span>
      </div>`;
 }

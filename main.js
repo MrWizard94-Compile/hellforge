@@ -4,6 +4,7 @@ const os = require("os");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const pty = require("@lydell/node-pty");
+const HFCore = require("./renderer/core.js");
 
 let win;
 let stateFile;
@@ -76,21 +77,7 @@ function gitStatus(dir) {
       { timeout: 4000, windowsHide: true, maxBuffer: 1 << 20 },
       (err, stdout) => {
         if (err) return resolve({ dir, isRepo: false });
-        let branch = "",
-          ahead = 0,
-          behind = 0,
-          dirty = 0;
-        for (const line of stdout.split("\n")) {
-          if (line.startsWith("# branch.head")) branch = line.slice(14).trim();
-          else if (line.startsWith("# branch.ab")) {
-            const m = line.match(/\+(\d+)\s+-(\d+)/);
-            if (m) {
-              ahead = +m[1];
-              behind = +m[2];
-            }
-          } else if (line && !line.startsWith("#")) dirty++;
-        }
-        resolve({ dir, isRepo: true, branch, ahead, behind, dirty });
+        resolve({ dir, isRepo: true, ...HFCore.parseGitStatus(stdout) });
       }
     );
   });

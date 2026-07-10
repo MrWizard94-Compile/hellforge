@@ -1,6 +1,10 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const vm = require("node:vm");
+const fs = require("node:fs");
+const path = require("node:path");
+const HFCore = require("../renderer/core.js");
 const {
   fuzzy,
   rankItems,
@@ -13,9 +17,11 @@ const {
   shouldNotify,
   broadcastTargets,
   nextActiveAfterClose,
+  fmtUptime,
+  parseGitStatus,
   BUSY_MIN_MS,
   IDLE_MS,
-} = require("../renderer/core.js");
+} = HFCore;
 
 test("fuzzy: empty query matches everything with score 1", () => {
   assert.equal(fuzzy("", "anything"), 1);
@@ -83,6 +89,10 @@ test("visibleIds: 4-grid clamps to available panes", () => {
   assert.deepEqual(visibleIds([1, 2], 1, 4), [1, 2]);
   assert.deepEqual(visibleIds([1, 2, 3, 4, 5], 5, 4), [2, 3, 4, 5]);
 });
+test("visibleIds: stale/absent focus falls back to first pane", () => {
+  assert.deepEqual(visibleIds([1, 2, 3], 99, 1), [1]); // 99 not in order
+  assert.deepEqual(visibleIds([1, 2, 3], 99, 3), [1]); // layout 3 clamps to single
+});
 
 test("layoutClass maps counts to grid classes", () => {
   assert.equal(layoutClass(1), "l1");
@@ -95,6 +105,16 @@ test("buildShellArgs: pwsh injects prompt and run", () => {
   const r = buildShellArgs("pwsh.exe", { promptCmd: "P", run: "git status" });
   assert.deepEqual(r.args, ["-NoLogo", "-NoExit", "-Command", "P; git status"]);
   assert.equal(r.deferredRun, null);
+});
+test("buildShellArgs: pwsh with neither claude nor run is just the prompt", () => {
+  assert.deepEqual(buildShellArgs("pwsh.exe", { promptCmd: "P" }).args, [
+    "-NoLogo",
+    "-NoExit",
+    "-Command",
+    "P",
+  ]);
+  // no opts at all
+  assert.deepEqual(buildShellArgs("pwsh.exe").args, ["-NoLogo", "-NoExit", "-Command", ""]);
 });
 
 test("buildShellArgs: pwsh claude appends claude, ignores run", () => {
@@ -159,6 +179,10 @@ test("commandFinished: not-busy forge is never finished", () => {
   assert.equal(commandFinished({ busy: false }, 1), false);
   assert.equal(commandFinished(null, 1), false);
 });
+test("commandFinished: busy forge missing timestamps uses 0 fallbacks", () => {
+  // busy but no lastData/busyStart -> idle huge, dur 0 -> not finished
+  assert.equal(commandFinished({ busy: true }, 5000), false);
+});
 
 test("shouldNotify: suppressed only when watching the focused visible pane", () => {
   assert.equal(shouldNotify(2, 2, [1, 2], false), false); // watching → no notify
@@ -181,4 +205,136 @@ test("nextActiveAfterClose: picks neighbor, clamps, null when empty", () => {
 
 test("threshold constants are sane", () => {
   assert.ok(BUSY_MIN_MS > IDLE_MS);
+});
+
+// ---------- fmtUptime ----------
+test("fmtUptime formats seconds compactly", () => {
+  assert.equal(fmtUptime(0), "0m");
+  assert.equal(fmtUptime(59), "0m");
+  assert.equal(fmtUptime(60), "1m");
+  assert.equal(fmtUptime(3599), "59m");
+  assert.equal(fmtUptime(3600), "1h 0m");
+  assert.equal(fmtUptime(3660), "1h 1m");
+  assert.equal(fmtUptime(90000), "25h 0m");
+});
+test("fmtUptime tolerates junk", () => {
+  assert.equal(fmtUptime(undefined), "0m");
+  assert.equal(fmtUptime(null), "0m");
+  assert.equal(fmtUptime(-500), "0m");
+  assert.equal(fmtUptime("7200"), "2h 0m");
+  assert.equal(fmtUptime(NaN), "0m");
+});
+
+// ---------- parseGitStatus ----------
+test("parseGitStatus reads branch, ahead/behind, dirty count", () => {
+  const out =
+    "# branch.oid abc\n# branch.head main\n# branch.ab +2 -1\n" +
+    "1 .M N... 100644 100644 100644 a b file.txt\n? untracked.txt\n";
+  assert.deepEqual(parseGitStatus(out), { branch: "main", ahead: 2, behind: 1, dirty: 2 });
+});
+test("parseGitStatus: clean repo", () => {
+  assert.deepEqual(parseGitStatus("# branch.head main\n# branch.ab +0 -0\n"), {
+    branch: "main",
+    ahead: 0,
+    behind: 0,
+    dirty: 0,
+  });
+});
+test("parseGitStatus: detached head, no upstream", () => {
+  const r = parseGitStatus("# branch.head (detached)\n1 .M x\n");
+  assert.equal(r.branch, "(detached)");
+  assert.equal(r.dirty, 1);
+  assert.equal(r.ahead, 0);
+});
+test("parseGitStatus: malformed branch.ab line is ignored", () => {
+  const r = parseGitStatus("# branch.head main\n# branch.ab garbage here\n");
+  assert.equal(r.branch, "main");
+  assert.equal(r.ahead, 0);
+  assert.equal(r.behind, 0);
+});
+test("parseGitStatus tolerates empty/garbage/null", () => {
+  assert.deepEqual(parseGitStatus(""), { branch: "", ahead: 0, behind: 0, dirty: 0 });
+  assert.deepEqual(parseGitStatus(null), { branch: "", ahead: 0, behind: 0, dirty: 0 });
+  assert.deepEqual(parseGitStatus(undefined), { branch: "", ahead: 0, behind: 0, dirty: 0 });
+  const g = parseGitStatus("total nonsense\nmore junk\n");
+  assert.equal(g.dirty, 2); // non-# lines count as changes
+});
+
+// ---------- adversarial / fuzz: nothing should throw on bad input ----------
+const BADS = [undefined, null, NaN, 0, -1, "", "x", {}, [], true, () => {}, Infinity];
+function survives(fn) {
+  for (const a of BADS)
+    for (const b of BADS)
+      for (const c of BADS) {
+        try {
+          fn(a, b, c);
+        } catch (e) {
+          assert.fail(`threw on (${String(a)},${String(b)},${String(c)}): ${e.message}`);
+        }
+      }
+}
+
+test("fuzz: fuzzy never throws", () => survives((a, b) => fuzzy(a, b)));
+test("fuzz: rankItems never throws + always returns array", () => {
+  for (const items of [null, undefined, {}, "x", [null, undefined, { name: "a" }], 5]) {
+    const r = rankItems(items, "a", 10);
+    assert.ok(Array.isArray(r));
+  }
+  survives((a, b, c) => rankItems(a, b, c));
+});
+test("fuzz: rankItems negative/zero limit yields empty", () => {
+  const items = [{ name: "a" }, { name: "b" }];
+  assert.deepEqual(rankItems(items, "", -5), []);
+  assert.deepEqual(rankItems(items, "", 0), []);
+});
+test("fuzz: visibleIds never throws + always array", () => {
+  survives((a, b, c) => visibleIds(a, b, c));
+  for (const o of [null, undefined, "x", 5, {}]) assert.deepEqual(visibleIds(o, 1, 2), []);
+});
+test("fuzz: layoutClass always returns l1|l2|l4", () => {
+  for (const n of BADS.concat([1, 2, 3, 4, 99])) {
+    const c = layoutClass(n);
+    assert.ok(["l1", "l2", "l4"].includes(c), `bad class ${c} for ${String(n)}`);
+  }
+});
+test("fuzz: buildShellArgs never throws + shape holds", () => {
+  survives((a, b) => buildShellArgs(a, b));
+  const r = buildShellArgs(null, null);
+  assert.ok(Array.isArray(r.args));
+  assert.ok("deferredRun" in r);
+});
+test("fuzz: gaugeHeight always 4..100", () => {
+  for (const n of BADS.concat([-999, 999, 42.7]))
+    assert.ok(gaugeHeight(n) >= 4 && gaugeHeight(n) <= 100);
+});
+test("fuzz: mergeSettings never throws + returns object", () => {
+  survives((a, b) => mergeSettings(a, b));
+  assert.equal(typeof mergeSettings(null, null), "object");
+  assert.equal(typeof mergeSettings({ a: 1 }, "[]"), "object");
+});
+test("fuzz: commandFinished/shouldNotify/broadcastTargets/nextActiveAfterClose never throw", () => {
+  survives((a, b) => commandFinished(a, b));
+  survives((a, b, c) => shouldNotify(a, b, c, false));
+  survives((a, b, c) => broadcastTargets(a, b, c));
+  survives((a, b) => nextActiveAfterClose(a, b));
+  assert.ok(Array.isArray(broadcastTargets(true, 1, null)));
+  assert.equal(nextActiveAfterClose(null, 3), null);
+});
+test("fuzz: fmtUptime + parseGitStatus never throw", () => {
+  for (const a of BADS) {
+    fmtUptime(a);
+    parseGitStatus(a);
+  }
+});
+
+// ---------- UMD: browser-context export path ----------
+test("core.js attaches HFCore to global when module is absent (browser)", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "renderer", "core.js"), "utf8");
+  const sandbox = {};
+  sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox);
+  assert.equal(typeof sandbox.HFCore, "object");
+  assert.equal(typeof sandbox.HFCore.fuzzy, "function");
+  assert.equal(sandbox.HFCore.layoutClass(2), "l2");
 });

@@ -9,11 +9,16 @@
  * UMD-ish export: attaches to module.exports under Node, and to
  * globalThis.HFCore in the browser (loaded via a plain <script> before app.js).
  */
+// UMD boilerplate — the export/root branches are environment-dependent and
+// can't both run under Node's require; the browser path is proven by the vm
+// test in core.test.js, so coverage is disabled for the wrapper only.
+/* node:coverage disable */
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.HFCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  /* node:coverage enable */
   "use strict";
 
   /**
@@ -48,11 +53,13 @@
    */
   function rankItems(items, q, limit) {
     limit = limit == null ? 40 : limit;
-    const scored = items
+    const list = Array.isArray(items) ? items : [];
+    const scored = list
+      .filter((it) => it != null)
       .map((it) => ({ it, s: fuzzy(q, it.name) || fuzzy(q, it.sub || "") * 0.3 }))
       .filter((x) => x.s > 0 || !q);
     if (q) scored.sort((a, b) => b.s - a.s);
-    return scored.slice(0, limit).map((x) => x.it);
+    return scored.slice(0, Math.max(0, limit)).map((x) => x.it);
   }
 
   /**
@@ -61,15 +68,18 @@
    * pane is always included, clamped to the end of the list.
    */
   function visibleIds(order, activeId, layout) {
-    if (!order.length) return [];
-    if (layout === 1) return activeId != null ? [activeId] : [order[0]];
+    if (!Array.isArray(order) || !order.length) return [];
+    const n = layout === 2 || layout === 4 ? layout : 1;
+    if (n === 1)
+      return activeId != null && order.indexOf(activeId) !== -1 ? [activeId] : [order[0]];
     const fi = Math.max(0, order.indexOf(activeId));
-    const start = Math.min(fi, Math.max(0, order.length - layout));
-    return order.slice(start, start + layout);
+    const start = Math.min(fi, Math.max(0, order.length - n));
+    return order.slice(start, start + n);
   }
 
   /** CSS grid class for a given number of visible panes. */
   function layoutClass(n) {
+    n = Number(n) || 1;
     return "l" + (n <= 1 ? 1 : n <= 2 ? 2 : 4);
   }
 
@@ -88,6 +98,7 @@
    */
   function buildShellArgs(shell, opts) {
     opts = opts || {};
+    shell = String(shell || "");
     const { isClaude, run, promptCmd } = opts;
     const isPwsh = /pwsh|powershell/i.test(shell);
     if (isPwsh) {
@@ -145,19 +156,58 @@
    * visible pane).
    */
   function shouldNotify(id, activeId, visible, hidden) {
-    const watching = !hidden && activeId === id && visible.indexOf(id) !== -1;
+    const vis = Array.isArray(visible) ? visible : [];
+    const watching = !hidden && activeId === id && vis.indexOf(id) !== -1;
     return !watching;
   }
 
   /** PTY ids that an input event should be written to (broadcast fans out). */
   function broadcastTargets(broadcast, id, visible) {
-    return broadcast && visible.indexOf(id) !== -1 ? visible.slice() : [id];
+    const vis = Array.isArray(visible) ? visible : [];
+    return broadcast && vis.indexOf(id) !== -1 ? vis.slice() : [id];
   }
 
   /** Id to focus after closing the pane at `closedIndex` (order already spliced). */
   function nextActiveAfterClose(order, closedIndex) {
-    if (!order.length) return null;
-    return order[Math.min(closedIndex, order.length - 1)];
+    if (!Array.isArray(order) || !order.length) return null;
+    const i = Math.max(0, Math.min(Number(closedIndex) || 0, order.length - 1));
+    return order[i];
+  }
+
+  /**
+   * Format app-uptime seconds as a compact "Xh Ym" / "Ym" string.
+   */
+  function fmtUptime(s) {
+    s = Math.max(0, Math.floor(Number(s) || 0));
+    if (!s) return "0m";
+    const h = Math.floor(s / 3600),
+      m = Math.floor((s % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  /**
+   * Parse `git status --porcelain=2 --branch` output into a summary.
+   * Robust to empty/garbage input. `dirty` counts changed/untracked entries.
+   */
+  function parseGitStatus(stdout) {
+    let branch = "",
+      ahead = 0,
+      behind = 0,
+      dirty = 0;
+    for (const line of String(stdout == null ? "" : stdout).split("\n")) {
+      if (line.startsWith("# branch.head")) {
+        branch = line.slice(14).trim();
+      } else if (line.startsWith("# branch.ab")) {
+        const m = line.match(/\+(\d+)\s+-(\d+)/);
+        if (m) {
+          ahead = +m[1];
+          behind = +m[2];
+        }
+      } else if (line && line[0] !== "#") {
+        dirty++;
+      }
+    }
+    return { branch, ahead, behind, dirty };
   }
 
   return {
@@ -172,6 +222,8 @@
     shouldNotify,
     broadcastTargets,
     nextActiveAfterClose,
+    fmtUptime,
+    parseGitStatus,
     BUSY_MIN_MS,
     IDLE_MS,
   };
