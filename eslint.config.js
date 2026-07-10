@@ -28,6 +28,7 @@ module.exports = [
         WebLinksAddon: "readonly",
         SearchAddon: "readonly",
         HFCore: "readonly",
+        HFCouncil: "readonly",
       },
     },
     rules: {

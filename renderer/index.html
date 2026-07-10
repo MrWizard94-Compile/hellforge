@@ -61,6 +61,7 @@
         <div class="rune" id="rune-claude" title="Summon Claude">&#5792;</div>
         <div class="rune" id="rune-grok" title="Summon Grok Build">&#5833;</div>
         <div class="rune" id="rune-ollama" title="Summon Ollama">&#5798;</div>
+        <div class="rune" id="rune-council" title="The Council — agent comms (Alt+C)">&#9776;</div>
         <div class="rune" id="rune-clear" title="Clear (Ctrl+L)">&#5815;</div>
         <div class="sidebar-flourish"><span class="flourish-rune">&#5817;</span></div>
         <div class="gauge">
@@ -197,6 +198,33 @@
       </div>
     </div>
 
+    <!-- The Council: multi-agent comms (Alt+C) -->
+    <div id="council" class="hidden">
+      <div id="council-box">
+        <div class="council-head">
+          <span class="council-title">&#9776; THE COUNCIL</span>
+          <span class="council-ws" id="council-ws"></span>
+          <span class="council-x" id="council-close" title="Close (Esc)">&times;</span>
+        </div>
+        <div id="council-log"></div>
+        <div class="council-compose">
+          <select id="council-target" title="Who receives this dispatch"></select>
+          <input
+            id="council-input"
+            type="text"
+            spellcheck="false"
+            placeholder="Dispatch to the council &mdash; typed into the agent and logged to the shared bus&hellip;"
+          />
+          <button id="council-send" title="Dispatch (Enter)">Dispatch</button>
+        </div>
+        <div class="council-hint">
+          Director &rarr; Orchestrator (Claude) &rarr; Executor (Grok) &middot; Local (Ollama).
+          Agents post back from their terminal with <code>hf-say &lt;msg&gt;</code>. Shared
+          workspace + bus under <code id="council-ws-path">C:\WPAI\Workspace</code>. Esc to close.
+        </div>
+      </div>
+    </div>
+
     <!-- keybindings help (F1) -->
     <div id="help" class="hidden">
       <div id="help-box">
@@ -216,6 +244,7 @@
     <script src="../node_modules/@xterm/addon-web-links/lib/addon-web-links.js"></script>
     <script src="../node_modules/@xterm/addon-search/lib/addon-search.js"></script>
     <script src="core.js"></script>
+    <script src="council.js"></script>
     <script src="projects.js"></script>
     <script src="app.js"></script>
   </body>

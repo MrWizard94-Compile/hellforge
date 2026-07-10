@@ -109,10 +109,19 @@ async function summon(kind, o = {}) {
   term.open(holder);
   fit.fit();
 
+  // Role-aware prompt. `hf-say <msg>` lets an agent post to the shared Council
+  // bus straight from its terminal (ConvertTo-Json escapes the body safely).
+  const role = HFCouncil.roleFor(kind);
   const promptCmd =
     'function prompt { "`e[38;2;255;122;38m[HELLFORGE]`e[0m ' +
     '`e[38;2;170;130;90m$(Get-Location)`e[0m `e[38;2;232;69;28m>`e[0m " }; ' +
-    "Write-Host '  the forge is lit. speak, and it shapes.' -ForegroundColor DarkYellow";
+    '$global:HF_ROLE = "' +
+    role +
+    '"; function hf-say { param([Parameter(Mandatory=$true)][string]$Message, [string]$To = "all") ' +
+    '$d = "C:\\WPAI\\Workspace\\.hellforge"; New-Item -ItemType Directory -Force -Path $d | Out-Null; ' +
+    "$o = [ordered]@{ ts = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); from = $global:HF_ROLE; to = $To; text = $Message }; " +
+    'Add-Content -Path "$d\\bus.jsonl" -Value ($o | ConvertTo-Json -Compress) }; ' +
+    "Write-Host '  the forge is lit. speak, and it shapes.  (hf-say <msg> posts to the Council)' -ForegroundColor DarkYellow";
   const shell = agent ? "pwsh.exe" : o.shell || settings.shell || "pwsh.exe";
   const launch = agent ? agent.launch(o) : null;
   const { args, deferredRun } = HFCore.buildShellArgs(shell, { launch, run: o.run, promptCmd });
@@ -193,6 +202,7 @@ function renderLayout() {
     }
   });
   updateStatus();
+  if (councilOpen) renderCouncilTargets();
 }
 
 function f_focus(id) {
@@ -475,6 +485,200 @@ setInterval(() => {
   const c = $("deck-clock");
   if (c && deckOpen) c.textContent = new Date().toLocaleTimeString();
 }, 1000);
+
+// ============ The Council: multi-agent comms ============
+// A shared JSONL bus (backed by main.js) lets the Director dispatch orders
+// straight into an agent's stdin while every message is logged for the team.
+// Roles: Director (you) -> Orchestrator (Claude) -> Executor (Grok) + Local (Ollama).
+let councilOpen = false;
+const councilEl = $("council");
+const KNOWN_ROLES = ["director", "orchestrator", "executor", "local", "shell"];
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
+}
+
+// current forges shaped for HFCouncil.resolveTargets / the target picker
+function councilForges() {
+  return order.map((id) => {
+    const f = forges.get(id);
+    return {
+      id,
+      role: HFCouncil.roleFor(f ? f.kind : "shell"),
+      title: f ? f.title : "forge " + id,
+    };
+  });
+}
+
+// normalize a message's declared sender/target to a known role for styling
+function normRole(name) {
+  const r = String(name == null ? "" : name).toLowerCase();
+  return KNOWN_ROLES.includes(r) ? r : "shell";
+}
+function councilToLabel(to) {
+  const t = String(to == null ? "all" : to);
+  if (t === "all" || t === "*" || t === "") return "Everyone";
+  if (KNOWN_ROLES.includes(t.toLowerCase())) return HFCouncil.roleMeta(t).label;
+  const f = forges.get(Number(t));
+  return f ? f.title : t;
+}
+function councilTime(ts) {
+  const n = Number(ts);
+  if (!n) return "";
+  try {
+    return new Date(n).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+// Populate the dispatch target picker: Everyone, role groups, each open forge.
+function renderCouncilTargets() {
+  const sel = $("council-target");
+  if (!sel) return;
+  const prev = sel.value;
+  const list = councilForges();
+  const opts = ['<option value="all">\u{1F702} Everyone</option>'];
+  const rolesSeen = [];
+  for (const f of list) if (!rolesSeen.includes(f.role)) rolesSeen.push(f.role);
+  for (const r of rolesSeen) {
+    const n = list.filter((f) => f.role === r).length;
+    if (n > 1) {
+      const m = HFCouncil.roleMeta(r);
+      opts.push(`<option value="${r}">${m.icon} All ${escapeHtml(m.label)}s (${n})</option>`);
+    }
+  }
+  for (const f of list) {
+    const m = HFCouncil.roleMeta(f.role);
+    opts.push(`<option value="${f.id}">${m.icon} ${escapeHtml(f.title)}</option>`);
+  }
+  sel.innerHTML = opts.join("");
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+}
+
+// Render one message row (textContent throughout — bus content is untrusted).
+function appendCouncilMsg(msg) {
+  const log = $("council-log");
+  if (!log || !msg) return;
+  const empty = log.querySelector(".council-empty");
+  if (empty) empty.remove();
+  const role = normRole(msg.from);
+  const meta = HFCouncil.roleMeta(role);
+  const row = document.createElement("div");
+  row.className = "council-msg";
+  row.dataset.role = role;
+  const metaEl = document.createElement("div");
+  metaEl.className = "council-meta";
+  const parts = [
+    ["council-icon", meta.icon],
+    ["council-from", meta.label],
+    ["council-arrow", "→"],
+    ["council-to", councilToLabel(msg.to)],
+    ["council-time", councilTime(msg.ts)],
+  ];
+  for (const [cls, txt] of parts) {
+    const s = document.createElement("span");
+    s.className = cls;
+    s.textContent = txt;
+    metaEl.appendChild(s);
+  }
+  const text = document.createElement("div");
+  text.className = "council-text";
+  text.textContent = String(msg.text == null ? "" : msg.text);
+  row.append(metaEl, text);
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Dispatch: log to the bus AND type the order into each resolved agent's stdin.
+function councilDispatch() {
+  const input = $("council-input");
+  const sel = $("council-target");
+  if (!input || !sel) return;
+  const text = input.value.trim();
+  if (!text) return;
+  const target = sel.value;
+  const msg = HFCouncil.makeMessage("director", target, text, Date.now());
+  if (window.hellforge && window.hellforge.council) window.hellforge.council.post(msg);
+  else appendCouncilMsg(msg); // no bridge (e.g. browser preview) — render locally
+  const line = HFCouncil.formatForPty(text);
+  if (line && window.hellforge && window.hellforge.write) {
+    for (const id of HFCouncil.resolveTargets(target, councilForges())) {
+      window.hellforge.write(id, line);
+    }
+  }
+  input.value = "";
+}
+
+async function openCouncil() {
+  councilOpen = true;
+  councilEl.classList.remove("hidden");
+  renderCouncilTargets();
+  const log = $("council-log");
+  if (window.hellforge && window.hellforge.council) {
+    try {
+      const ws = await window.hellforge.council.workspace();
+      if (ws && ws.dir) {
+        $("council-ws").textContent = ws.dir;
+        const p = $("council-ws-path");
+        if (p) p.textContent = ws.dir;
+      }
+      const history = await window.hellforge.council.read();
+      log.innerHTML = "";
+      if (Array.isArray(history) && history.length) {
+        for (const m of history) appendCouncilMsg(m);
+      } else {
+        log.innerHTML =
+          '<div class="council-empty">The council chamber is silent.<br>Dispatch an order &mdash; or an agent posts back with hf-say.</div>';
+      }
+    } catch {
+      /* best-effort; ignore */
+    }
+  } else if (log && !log.children.length) {
+    log.innerHTML = '<div class="council-empty">Council bus offline (no bridge).</div>';
+  }
+  const input = $("council-input");
+  if (input) input.focus();
+}
+function closeCouncil() {
+  councilOpen = false;
+  councilEl.classList.add("hidden");
+  const f = forges.get(activeId);
+  if (f) f.term.focus();
+}
+function toggleCouncil() {
+  councilOpen ? closeCouncil() : openCouncil();
+}
+
+$("rune-council").addEventListener("click", toggleCouncil);
+$("council-close").addEventListener("click", closeCouncil);
+councilEl.addEventListener("click", (e) => {
+  if (e.target === councilEl) closeCouncil();
+});
+$("council-send").addEventListener("click", councilDispatch);
+$("council-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    councilDispatch();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeCouncil();
+  }
+});
+
+// live bus feed: new messages (our own posts + external hf-say) stream in
+if (window.hellforge && window.hellforge.council) {
+  window.hellforge.council.onMsg((msg) => appendCouncilMsg(msg));
+  // ensure the shared workspace exists up front
+  try {
+    window.hellforge.council.workspace();
+  } catch {
+    /* best-effort; ignore */
+  }
+}
 
 function extinguish(id) {
   const f = forges.get(id);
@@ -831,6 +1035,10 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     toggleDeck();
   }
+  if (e.altKey && (e.key === "c" || e.key === "C")) {
+    e.preventDefault();
+    toggleCouncil();
+  }
   if (e.key === "F1") {
     e.preventDefault();
     toggleHelp();
@@ -839,6 +1047,9 @@ window.addEventListener("keydown", (e) => {
     if (!$("help").classList.contains("hidden")) {
       e.preventDefault();
       $("help").classList.add("hidden");
+    } else if (councilOpen) {
+      e.preventDefault();
+      closeCouncil();
     } else if (deckOpen) {
       e.preventDefault();
       closeDeck();
@@ -1077,6 +1288,7 @@ tickEmbers();
 const HELP = [
   ["Ctrl+P", "Command palette"],
   ["Ctrl+`", "Command Deck"],
+  ["Alt+C", "The Council (agent comms)"],
   ["F1", "This help"],
   ["Ctrl+T", "New forge"],
   ["🜂 / ⚡ / 🦙", "Summon Claude / Grok / Ollama"],
