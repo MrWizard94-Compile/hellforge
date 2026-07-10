@@ -26,6 +26,9 @@ const settings = HFCore.mergeSettings(
     ollamaModel: "qwen2.5-coder:14b",
     ollamaCmd:
       "docker start ollama-engine | Out-Null; docker exec -it ollama-engine ollama run {model}",
+    apiKeyFile: "C:\\WPAI\\MyGrokKeys.md",
+    xaiModel: "grok-4.5",
+    anthropicModel: "claude-sonnet-5",
   },
   localStorage.getItem("hf-settings")
 );
@@ -494,6 +497,12 @@ let councilOpen = false;
 const councilEl = $("council");
 const KNOWN_ROLES = ["director", "orchestrator", "executor", "local", "shell"];
 
+// API-backed agents: which are switched on, which providers have keys, and the
+// recent bus history we feed them as context. executor=Grok/xai, orchestrator=Claude/anthropic.
+const apiAgents = { executor: false, orchestrator: false };
+let apiStatus = { xai: false, anthropic: false };
+let councilHistory = [];
+
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(
     /[&<>"']/g,
@@ -563,6 +572,8 @@ function renderCouncilTargets() {
 function appendCouncilMsg(msg) {
   const log = $("council-log");
   if (!log || !msg) return;
+  councilHistory.push({ from: msg.from, to: msg.to, text: msg.text, ts: msg.ts });
+  if (councilHistory.length > 200) councilHistory.shift();
   const empty = log.querySelector(".council-empty");
   if (empty) empty.remove();
   const role = normRole(msg.from);
@@ -593,6 +604,85 @@ function appendCouncilMsg(msg) {
   log.scrollTop = log.scrollHeight;
 }
 
+// Reflect key presence + on/off state on the API-agent chips.
+function renderApiChips() {
+  for (const role of ["executor", "orchestrator"]) {
+    const chip = $("api-chip-" + role);
+    if (!chip) continue;
+    const provider = role === "executor" ? "xai" : "anthropic";
+    const hasKey = !!apiStatus[provider];
+    if (!hasKey) apiAgents[role] = false;
+    chip.disabled = !hasKey;
+    chip.classList.toggle("active", hasKey && apiAgents[role]);
+    chip.title = !hasKey
+      ? "No " + provider + " key in " + settings.apiKeyFile
+      : apiAgents[role]
+        ? "On — answers dispatches over the API"
+        : "Off — click to enable";
+  }
+  const hint = $("api-agents-hint");
+  if (hint) hint.textContent = apiStatus.xai || apiStatus.anthropic ? "" : "add keys in Settings";
+}
+
+// Ask the main process which providers have keys (values never cross the bridge).
+async function refreshApiStatus() {
+  if (window.hellforge && window.hellforge.api) {
+    try {
+      apiStatus = (await window.hellforge.api.status(settings.apiKeyFile)) || {
+        xai: false,
+        anthropic: false,
+      };
+    } catch {
+      apiStatus = { xai: false, anthropic: false };
+    }
+  } else {
+    apiStatus = { xai: false, anthropic: false };
+  }
+  renderApiChips();
+}
+
+// A transient, non-persisted status line in the transcript (errors, notices).
+function appendCouncilNote(text) {
+  const log = $("council-log");
+  if (!log) return;
+  const note = document.createElement("div");
+  note.className = "council-note";
+  note.textContent = text;
+  log.appendChild(note);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Ask an active API agent. On success main posts the reply to the bus (which
+// streams back via onMsg); on failure we show a transient note.
+async function askApiAgent(role, prompt) {
+  if (!(window.hellforge && window.hellforge.api)) return;
+  const meta = HFCouncil.roleMeta(role);
+  const log = $("council-log");
+  const pend = document.createElement("div");
+  pend.className = "council-pending";
+  pend.textContent = meta.icon + " " + meta.label + " (API) is deliberating…";
+  if (log) {
+    log.appendChild(pend);
+    log.scrollTop = log.scrollHeight;
+  }
+  try {
+    const res = await window.hellforge.api.ask({
+      role,
+      prompt,
+      history: councilHistory.slice(-14),
+      keyFile: settings.apiKeyFile,
+      model: role === "executor" ? settings.xaiModel : settings.anthropicModel,
+    });
+    pend.remove();
+    if (!res || !res.ok) {
+      appendCouncilNote("⚠ " + meta.label + " (API): " + ((res && res.error) || "no response"));
+    }
+  } catch {
+    pend.remove();
+    appendCouncilNote("⚠ " + meta.label + " (API): call failed");
+  }
+}
+
 // Dispatch: log to the bus AND type the order into each resolved agent's stdin.
 function councilDispatch() {
   const input = $("council-input");
@@ -610,6 +700,10 @@ function councilDispatch() {
       window.hellforge.write(id, line);
     }
   }
+  // fan out to any active API agents this dispatch addresses (Everyone or role)
+  for (const role of ["executor", "orchestrator"]) {
+    if (apiAgents[role] && (target === "all" || target === role)) askApiAgent(role, text);
+  }
   input.value = "";
 }
 
@@ -617,6 +711,8 @@ async function openCouncil() {
   councilOpen = true;
   councilEl.classList.remove("hidden");
   renderCouncilTargets();
+  renderApiChips();
+  refreshApiStatus();
   const log = $("council-log");
   if (window.hellforge && window.hellforge.council) {
     try {
@@ -627,6 +723,7 @@ async function openCouncil() {
         if (p) p.textContent = ws.dir;
       }
       const history = await window.hellforge.council.read();
+      councilHistory = [];
       log.innerHTML = "";
       if (Array.isArray(history) && history.length) {
         for (const m of history) appendCouncilMsg(m);
@@ -655,6 +752,15 @@ function toggleCouncil() {
 
 $("rune-council").addEventListener("click", toggleCouncil);
 $("council-close").addEventListener("click", closeCouncil);
+for (const role of ["executor", "orchestrator"]) {
+  const chip = $("api-chip-" + role);
+  if (chip)
+    chip.addEventListener("click", () => {
+      if (chip.disabled) return;
+      apiAgents[role] = !apiAgents[role];
+      renderApiChips();
+    });
+}
 councilEl.addEventListener("click", (e) => {
   if (e.target === councilEl) closeCouncil();
 });
@@ -679,6 +785,7 @@ if (window.hellforge && window.hellforge.council) {
     /* best-effort; ignore */
   }
 }
+refreshApiStatus();
 
 function extinguish(id) {
   const f = forges.get(id);
@@ -906,6 +1013,9 @@ function openSettings() {
   $("set-sound").checked = settings.sound;
   $("set-ollama-model").value = settings.ollamaModel;
   $("set-ollama-cmd").value = settings.ollamaCmd;
+  $("set-api-keyfile").value = settings.apiKeyFile;
+  $("set-xai-model").value = settings.xaiModel;
+  $("set-anthropic-model").value = settings.anthropicModel;
   settingsEl.classList.remove("hidden");
 }
 function closeSettings() {
@@ -939,6 +1049,19 @@ $("set-ollama-model").onchange = (e) => {
 };
 $("set-ollama-cmd").onchange = (e) => {
   settings.ollamaCmd = e.target.value.trim() || "ollama run {model}";
+  saveSettings();
+};
+$("set-api-keyfile").onchange = (e) => {
+  settings.apiKeyFile = e.target.value.trim() || "C:\\WPAI\\MyGrokKeys.md";
+  saveSettings();
+  refreshApiStatus();
+};
+$("set-xai-model").onchange = (e) => {
+  settings.xaiModel = e.target.value.trim() || "grok-4.5";
+  saveSettings();
+};
+$("set-anthropic-model").onchange = (e) => {
+  settings.anthropicModel = e.target.value.trim() || "claude-sonnet-5";
   saveSettings();
 };
 
