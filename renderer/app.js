@@ -122,7 +122,7 @@ async function summon(kind, o = {}) {
   });
   term.onResize(({ cols, rows }) => window.hellforge.resize(id, cols, rows));
 
-  forges.set(id, { term, fit, holder, tab, title, search });
+  forges.set(id, { term, fit, holder, tab, title, search, kind, cwd: o.cwd || "C:\\WPAI" });
   order.push(id);
   activeId = id;
   renderLayout();
@@ -358,12 +358,67 @@ function renderDeckTiles() {
   });
 }
 
+let gitCache = null;
+async function renderGitPulse(force) {
+  const el = $("deck-gitpulse");
+  if (!el) return;
+  if (!window.hellforge || !window.hellforge.gitStatus) {
+    el.innerHTML = `<div class="roster-empty">Git unavailable.</div>`;
+    return;
+  }
+  if (gitCache && !force) {
+    paintGitPulse(gitCache);
+    return;
+  }
+  el.innerHTML = `<div class="roster-empty">Reading the runes&hellip;</div>`;
+  const projects = window.HF_PROJECTS || [];
+  const results = await window.hellforge.gitStatus(projects.map((p) => p.path));
+  const byPath = new Map(results.map((r) => [r.dir, r]));
+  gitCache = projects
+    .map((p) => ({ ...p, ...(byPath.get(p.path) || { isRepo: false }) }))
+    .filter((r) => r.isRepo);
+  paintGitPulse(gitCache);
+}
+function paintGitPulse(repos) {
+  const el = $("deck-gitpulse");
+  if (!el) return;
+  if (!repos.length) {
+    el.innerHTML = `<div class="roster-empty">No git repos found.</div>`;
+    return;
+  }
+  // dirty repos first, then by name
+  const sorted = [...repos].sort((a, b) => b.dirty - a.dirty || a.name.localeCompare(b.name));
+  el.innerHTML = sorted
+    .map((r) => {
+      const state = r.dirty
+        ? `<span class="git-dirty">&#9679; ${r.dirty}</span>`
+        : `<span class="git-clean">&#10003;</span>`;
+      const ab =
+        (r.ahead ? `<span class="git-ab">&#8593;${r.ahead}</span>` : "") +
+        (r.behind ? `<span class="git-ab">&#8595;${r.behind}</span>` : "");
+      return `<div class="git-item" data-path="${r.path}" title="${r.name} — ${r.branch}">
+        <span class="git-name">${r.name}</span>
+        <span class="git-branch">${r.branch || "—"}</span>
+        ${ab}${state}
+      </div>`;
+    })
+    .join("");
+  el.querySelectorAll(".git-item").forEach((it) => {
+    const p = (window.HF_PROJECTS || []).find((x) => x.path === it.dataset.path);
+    it.addEventListener("click", () => {
+      if (p) summon("shell", { cwd: p.path, label: p.name });
+      closeDeck();
+    });
+  });
+}
+
 function openDeck() {
   deckOpen = true;
   deckEl.classList.remove("hidden");
   renderDeckVitals();
   renderDeckForges();
   renderDeckTiles();
+  renderGitPulse(false);
 }
 function closeDeck() {
   deckOpen = false;
@@ -375,6 +430,10 @@ function toggleDeck() {
   deckOpen ? closeDeck() : openDeck();
 }
 $("slot-forges").addEventListener("click", toggleDeck);
+$("git-refresh").addEventListener("click", (e) => {
+  e.stopPropagation();
+  renderGitPulse(true);
+});
 setInterval(() => {
   const c = $("deck-clock");
   if (c && deckOpen) c.textContent = new Date().toLocaleTimeString();
@@ -720,9 +779,18 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
     toggleDeck();
   }
-  if (e.key === "Escape" && deckOpen) {
+  if (e.key === "F1") {
     e.preventDefault();
-    closeDeck();
+    toggleHelp();
+  }
+  if (e.key === "Escape") {
+    if (!$("help").classList.contains("hidden")) {
+      e.preventDefault();
+      $("help").classList.add("hidden");
+    } else if (deckOpen) {
+      e.preventDefault();
+      closeDeck();
+    }
   }
 });
 
@@ -951,5 +1019,62 @@ function tickEmbers() {
 }
 tickEmbers();
 
-// ---- first fire ----
-summon("shell");
+// ============ keybindings help (F1) ============
+const HELP = [
+  ["Ctrl+P", "Command palette"],
+  ["Ctrl+`", "Command Deck"],
+  ["F1", "This help"],
+  ["Ctrl+T", "New forge"],
+  ["Ctrl+W", "Extinguish forge"],
+  ["Ctrl+D", "Split panes"],
+  ["Alt+1 / 2 / 4", "Layout: single / split / grid"],
+  ["Ctrl+F", "Search in terminal"],
+  ["Ctrl+= / − / 0", "Font zoom / reset"],
+  ["Double-click tab", "Rename forge"],
+  ["Drag pane edge", "Resize a split"],
+  ["Broadcast toggle", "Type into every visible pane"],
+];
+function toggleHelp() {
+  const h = $("help");
+  if (h.classList.contains("hidden")) {
+    $("help-grid").innerHTML = HELP.map(
+      ([k, d]) => `<div class="help-row"><kbd>${k}</kbd><span>${d}</span></div>`
+    ).join("");
+    h.classList.remove("hidden");
+  } else {
+    h.classList.add("hidden");
+  }
+}
+$("help").addEventListener("click", (e) => {
+  if (e.target === $("help")) $("help").classList.add("hidden");
+});
+
+// ============ session restore ============
+function saveSession() {
+  const forgesArr = order
+    .map((id) => {
+      const f = forges.get(id);
+      return f ? { kind: f.kind, cwd: f.cwd, label: f.title } : null;
+    })
+    .filter(Boolean);
+  localStorage.setItem("hf-session", JSON.stringify({ layout, forges: forgesArr }));
+}
+window.addEventListener("beforeunload", saveSession);
+
+async function boot() {
+  let saved;
+  try {
+    saved = JSON.parse(localStorage.getItem("hf-session") || "null");
+  } catch {
+    saved = null;
+  }
+  if (saved && Array.isArray(saved.forges) && saved.forges.length) {
+    for (const f of saved.forges) {
+      await summon(f.kind || "shell", { cwd: f.cwd, label: f.label });
+    }
+    if (saved.layout && saved.layout !== 1) setLayout(saved.layout);
+  } else {
+    summon("shell");
+  }
+}
+boot();

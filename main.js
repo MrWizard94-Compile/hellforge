@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const { execFile } = require("child_process");
 const pty = require("@lydell/node-pty");
 
 let win;
@@ -65,6 +66,44 @@ setInterval(() => {
     });
   }
 }, 2000);
+
+// ---- git pulse: branch + working-tree status per project ----
+function gitStatus(dir) {
+  return new Promise((resolve) => {
+    execFile(
+      "git",
+      ["-C", dir, "status", "--porcelain=2", "--branch"],
+      { timeout: 4000, windowsHide: true, maxBuffer: 1 << 20 },
+      (err, stdout) => {
+        if (err) return resolve({ dir, isRepo: false });
+        let branch = "",
+          ahead = 0,
+          behind = 0,
+          dirty = 0;
+        for (const line of stdout.split("\n")) {
+          if (line.startsWith("# branch.head")) branch = line.slice(14).trim();
+          else if (line.startsWith("# branch.ab")) {
+            const m = line.match(/\+(\d+)\s+-(\d+)/);
+            if (m) {
+              ahead = +m[1];
+              behind = +m[2];
+            }
+          } else if (line && !line.startsWith("#")) dirty++;
+        }
+        resolve({ dir, isRepo: true, branch, ahead, behind, dirty });
+      }
+    );
+  });
+}
+ipcMain.handle("git:status", async (e, dirs) => {
+  const queue = [...dirs];
+  const out = [];
+  const worker = async () => {
+    while (queue.length) out.push(await gitStatus(queue.shift()));
+  };
+  await Promise.all(Array.from({ length: 6 }, worker));
+  return out;
+});
 
 function createWindow() {
   stateFile = path.join(app.getPath("userData"), "window-state.json");

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("hellforge", {
   onData: (cb) => ipcRenderer.on("pty:data", (e, m) => cb(m)),
   onExit: (cb) => ipcRenderer.on("pty:exit", (e, m) => cb(m)),
   onStats: (cb) => ipcRenderer.on("sys:stats", (e, s) => cb(s)),
+  gitStatus: (dirs) => ipcRenderer.invoke("git:status", dirs),
   winMin: () => ipcRenderer.send("win:min"),
   winMax: () => ipcRenderer.send("win:max"),
   winClose: () => ipcRenderer.send("win:close"),
