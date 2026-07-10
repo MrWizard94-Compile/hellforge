@@ -6,6 +6,7 @@ const { execFile } = require("child_process");
 const pty = require("@lydell/node-pty");
 const HFCore = require("./renderer/core.js");
 const HFCouncil = require("./renderer/council.js");
+const HFApi = require("./renderer/api.js");
 
 let win;
 let stateFile;
@@ -125,7 +126,9 @@ ipcMain.handle("council:workspace", () => {
   }
 });
 
-ipcMain.handle("council:post", (e, msg) => {
+// Append a message to the bus and broadcast it. Returns the stored record or
+// null. Shared by the council:post IPC and the API-agent replies.
+function postToBus(msg) {
   try {
     ensureCouncilDirs();
     const line = HFCouncil.serializeMsg(msg) + "\n";
@@ -136,13 +139,15 @@ ipcMain.handle("council:post", (e, msg) => {
     } catch {
       /* best-effort; ignore */
     }
-    const stored = HFCouncil.parseBus(HFCouncil.serializeMsg(msg))[0];
+    const stored = HFCouncil.parseBus(HFCouncil.serializeMsg(msg))[0] || null;
     if (stored) broadcastCouncilMsg(stored);
-    return true;
+    return stored;
   } catch {
-    return false;
+    return null;
   }
-});
+}
+
+ipcMain.handle("council:post", (e, msg) => !!postToBus(msg));
 
 ipcMain.handle("council:read", () => {
   try {
@@ -155,6 +160,73 @@ ipcMain.handle("council:read", () => {
     return HFCouncil.parseBus(content);
   } catch {
     return [];
+  }
+});
+
+// ---- API-backed Council agents (keys live ONLY here, never in the renderer) ----
+const DEFAULT_KEY_FILE = "C:\\WPAI\\MyGrokKeys.md";
+
+// Load provider keys from the key file + environment. The raw key never leaves
+// this process: it is only ever placed in an outbound request header.
+function loadKeys(keyFile) {
+  let text;
+  try {
+    text = fs.readFileSync(keyFile || DEFAULT_KEY_FILE, "utf8");
+  } catch {
+    text = "";
+  }
+  return HFApi.extractKeys(text, process.env);
+}
+
+ipcMain.handle("api:status", (e, keyFile) => {
+  try {
+    return HFApi.keyStatus(loadKeys(keyFile));
+  } catch {
+    return { xai: false, anthropic: false };
+  }
+});
+
+// Ask an API agent. opts: { role, prompt, history, keyFile, model, maxTokens }.
+// On success the reply is posted to the shared bus (so it streams into every
+// Council transcript) and returned; on failure a reason is returned (never a key).
+ipcMain.handle("api:ask", async (e, opts) => {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const role = String(o.role || "");
+  const provider = HFApi.providerForRole(role);
+  if (!provider) return { ok: false, error: "no API provider for role '" + role + "'" };
+  const keys = loadKeys(o.keyFile);
+  const key = keys[provider];
+  if (!key) return { ok: false, error: "no " + provider + " key configured" };
+
+  const { system, messages } = HFApi.buildMessages(role, o.prompt, o.history);
+  const req = HFApi.buildRequest(provider, key, o.model, system, messages, {
+    maxTokens: o.maxTokens,
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch(req.url, {
+      method: "POST",
+      headers: req.headers,
+      body: JSON.stringify(req.body),
+      signal: controller.signal,
+    });
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      return { ok: false, error: "HTTP " + res.status + " (non-JSON response)" };
+    }
+    const parsed = HFApi.parseResponse(provider, json);
+    if (parsed.error) return { ok: false, error: parsed.error, status: res.status };
+    postToBus(HFCouncil.makeMessage(role, "all", parsed.text, Date.now()));
+    return { ok: true, text: parsed.text };
+  } catch (err) {
+    const reason = err && err.name === "AbortError" ? "request timed out" : "network error";
+    return { ok: false, error: reason };
+  } finally {
+    clearTimeout(timer);
   }
 });
 function loadState() {

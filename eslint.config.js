@@ -29,6 +29,7 @@ module.exports = [
         SearchAddon: "readonly",
         HFCore: "readonly",
         HFCouncil: "readonly",
+        HFApi: "readonly",
       },
     },
     rules: {
@@ -49,6 +50,8 @@ module.exports = [
         __dirname: "readonly",
         console: "readonly",
         Buffer: "readonly",
+        fetch: "readonly",
+        AbortController: "readonly",
         setInterval: "readonly",
         setTimeout: "readonly",
         clearInterval: "readonly",

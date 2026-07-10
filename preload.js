@@ -19,4 +19,8 @@ contextBridge.exposeInMainWorld("hellforge", {
     read: () => ipcRenderer.invoke("council:read"),
     onMsg: (cb) => ipcRenderer.on("council:msg", (e, msg) => cb(msg)),
   },
+  api: {
+    status: (keyFile) => ipcRenderer.invoke("api:status", keyFile),
+    ask: (opts) => ipcRenderer.invoke("api:ask", opts),
+  },
 });

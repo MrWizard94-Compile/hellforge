@@ -191,6 +191,34 @@
           &#129433; Ollama runs your local model. <code>{model}</code> is replaced by the model
           above. Default targets the <code>ollama-engine</code> Docker container.
         </div>
+        <div class="set-sep">API Council agents</div>
+        <label class="set-row set-row-wide"
+          ><span>API key file</span>
+          <input
+            id="set-api-keyfile"
+            type="text"
+            spellcheck="false"
+            placeholder="C:\WPAI\MyGrokKeys.md"
+          />
+        </label>
+        <label class="set-row"
+          ><span>Grok API model</span>
+          <input id="set-xai-model" type="text" spellcheck="false" placeholder="grok-4.5" />
+        </label>
+        <label class="set-row"
+          ><span>Claude API model</span>
+          <input
+            id="set-anthropic-model"
+            type="text"
+            spellcheck="false"
+            placeholder="claude-sonnet-5"
+          />
+        </label>
+        <div class="set-note">
+          Keys are read in the main process only &mdash; never stored in the app or sent to the
+          renderer. Add <code>ANTHROPIC_API_KEY=sk-ant-&hellip;</code> to the key file to enable
+          Claude. Grok needs credits on your xAI team.
+        </div>
         <div class="set-hint">
           Ctrl+P palette · Ctrl+F search · Ctrl+± zoom · Alt+1/2/4 layout · Ctrl+D split
         </div>
@@ -205,6 +233,16 @@
           <span class="council-title">&#9776; THE COUNCIL</span>
           <span class="council-ws" id="council-ws"></span>
           <span class="council-x" id="council-close" title="Close (Esc)">&times;</span>
+        </div>
+        <div class="council-agents">
+          <span class="council-agents-label">API agents:</span>
+          <button class="api-chip" id="api-chip-executor" data-role="executor" disabled>
+            &#9889; Grok
+          </button>
+          <button class="api-chip" id="api-chip-orchestrator" data-role="orchestrator" disabled>
+            &#128770; Claude
+          </button>
+          <span class="council-agents-hint" id="api-agents-hint"></span>
         </div>
         <div id="council-log"></div>
         <div class="council-compose">
@@ -245,6 +283,7 @@
     <script src="../node_modules/@xterm/addon-search/lib/addon-search.js"></script>
     <script src="core.js"></script>
     <script src="council.js"></script>
+    <script src="api.js"></script>
     <script src="projects.js"></script>
     <script src="app.js"></script>
   </body>
