@@ -109,6 +109,9 @@ async function summon(kind, o = {}) {
   tab.addEventListener("auxclick", (e) => {
     if (e.button === 1) extinguish(id);
   });
+  tab.addEventListener("dblclick", (e) => {
+    if (!e.target.classList.contains("x")) renameTab(id);
+  });
   tabsEl.appendChild(tab);
 
   holder.addEventListener("mousedown", () => focusPane(id));
@@ -136,6 +139,7 @@ function visibleIds() {
 function renderLayout() {
   const vis = visibleIds();
   panesEl.className = HFCore.layoutClass(vis.length);
+  applySplits();
   for (const [fid, f] of forges) {
     const on = vis.includes(fid);
     f.holder.classList.toggle("shown", on);
@@ -171,6 +175,38 @@ function focusPane(id) {
 }
 const activate = focusPane; // back-compat alias
 
+// double-click a tab to rename its forge
+function renameTab(id) {
+  const f = forges.get(id);
+  if (!f) return;
+  const span = f.tab.querySelector(".t");
+  if (!span) return;
+  const input = document.createElement("input");
+  input.className = "tab-rename";
+  input.value = f.title;
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const v = input.value.trim() || f.title;
+    f.title = v;
+    const s = document.createElement("span");
+    s.className = "t";
+    s.textContent = v;
+    input.replaceWith(s);
+    if (activeId === id) updateStatus();
+  };
+  input.addEventListener("keydown", (ev) => {
+    ev.stopPropagation();
+    if (ev.key === "Enter") input.blur();
+    else if (ev.key === "Escape") {
+      input.value = f.title;
+      input.blur();
+    }
+  });
+  input.addEventListener("blur", commit, { once: true });
+}
+
 function setLayout(n) {
   layout = n;
   for (const b of document.querySelectorAll(".lay")) b.classList.remove("active");
@@ -179,6 +215,60 @@ function setLayout(n) {
   renderLayout();
   if (activeId != null) f_focus(activeId);
 }
+
+// ---- draggable pane splitters ----
+let colFrac = 0.5,
+  rowFrac = 0.5;
+const clampFrac = (v) => Math.max(0.15, Math.min(0.85, v));
+function applySplits() {
+  const cls = panesEl.className;
+  if (cls.indexOf("l4") !== -1) {
+    panesEl.style.gridTemplateColumns = `${colFrac}fr ${1 - colFrac}fr`;
+    panesEl.style.gridTemplateRows = `${rowFrac}fr ${1 - rowFrac}fr`;
+  } else if (cls.indexOf("l2") !== -1) {
+    panesEl.style.gridTemplateColumns = `${colFrac}fr ${1 - colFrac}fr`;
+    panesEl.style.gridTemplateRows = "1fr";
+  } else {
+    panesEl.style.gridTemplateColumns = "";
+    panesEl.style.gridTemplateRows = "";
+  }
+  $("split-v").style.left = colFrac * 100 + "%";
+  $("split-h").style.top = rowFrac * 100 + "%";
+}
+function fitVisible() {
+  for (const fid of visibleIds()) {
+    const f = forges.get(fid);
+    if (f) f.fit.fit();
+  }
+}
+function makeDraggable(handle, axis) {
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    handle.classList.add("dragging");
+    const rect = panesEl.getBoundingClientRect();
+    let raf = null;
+    const move = (ev) => {
+      if (axis === "x") colFrac = clampFrac((ev.clientX - rect.left) / rect.width);
+      else rowFrac = clampFrac((ev.clientY - rect.top) / rect.height);
+      applySplits();
+      if (!raf)
+        raf = requestAnimationFrame(() => {
+          raf = null;
+          fitVisible();
+        });
+    };
+    const up = () => {
+      handle.classList.remove("dragging");
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+      fitVisible();
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  });
+}
+makeDraggable($("split-v"), "x");
+makeDraggable($("split-h"), "y");
 
 function extinguish(id) {
   const f = forges.get(id);

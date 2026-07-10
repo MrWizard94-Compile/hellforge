@@ -291,6 +291,17 @@ body {
   padding: 0 2px;
   border-radius: 3px;
 }
+.tab-rename {
+  width: 88px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--ember);
+  border-radius: 3px;
+  outline: none;
+  color: #ffe4c4;
+  font-family: "Cinzel", serif;
+  font-size: 12px;
+  padding: 1px 4px;
+}
 .tab .x:hover {
   color: #ffb59b;
   background: rgba(122, 29, 15, 0.6);
@@ -676,6 +687,69 @@ body {
 }
 #panes.l4 {
   grid-template: 1fr 1fr / 1fr 1fr;
+}
+
+/* draggable pane splitters (overlay the grid gaps) */
+.split {
+  position: absolute;
+  z-index: 20;
+  display: none;
+  background: transparent;
+  transition: background 0.15s;
+}
+.split::after {
+  content: "";
+  position: absolute;
+  background: linear-gradient(
+    var(--dir, 180deg),
+    transparent,
+    rgba(255, 122, 38, 0.35),
+    transparent
+  );
+}
+#split-v {
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  transform: translateX(-50%);
+}
+#split-v::after {
+  --dir: 90deg;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+}
+#split-h {
+  left: 0;
+  right: 0;
+  height: 12px;
+  cursor: row-resize;
+  transform: translateY(-50%);
+}
+#split-h::after {
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+.split:hover::after,
+.split.dragging::after {
+  background: linear-gradient(
+    var(--dir, 180deg),
+    transparent,
+    rgba(255, 150, 60, 0.85),
+    transparent
+  );
+  box-shadow: 0 0 12px rgba(255, 122, 38, 0.6);
+}
+#panes.l2 #split-v,
+#panes.l4 #split-v,
+#panes.l4 #split-h {
+  display: block;
 }
 
 .term-holder {
