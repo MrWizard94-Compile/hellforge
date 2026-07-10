@@ -13,4 +13,10 @@ contextBridge.exposeInMainWorld("hellforge", {
   winMax: () => ipcRenderer.send("win:max"),
   winClose: () => ipcRenderer.send("win:close"),
   onWinState: (cb) => ipcRenderer.on("win:state", (e, maxed) => cb(maxed)),
+  council: {
+    workspace: () => ipcRenderer.invoke("council:workspace"),
+    post: (msg) => ipcRenderer.invoke("council:post", msg),
+    read: () => ipcRenderer.invoke("council:read"),
+    onMsg: (cb) => ipcRenderer.on("council:msg", (e, msg) => cb(msg)),
+  },
 });
