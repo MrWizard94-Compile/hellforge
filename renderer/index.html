@@ -53,6 +53,7 @@
           <div class="slot-skull">&#9760;</div>
           <div class="slot-label">FORGES</div>
           <div class="slot-count" id="forge-count">0</div>
+          <div class="slot-deck-hint">DECK</div>
         </div>
         <div class="rune" id="rune-forge" title="New Forge">&#5809;</div>
         <div class="rune" id="rune-claude" title="Summon Claude">&#5792;</div>
@@ -69,6 +70,29 @@
         <div id="panes" class="l1">
           <div id="split-v" class="split" title="Drag to resize"></div>
           <div id="split-h" class="split" title="Drag to resize"></div>
+        </div>
+        <div id="deck" class="hidden">
+          <div class="deck-inner">
+            <div class="deck-head">
+              <span class="deck-title">&#9942; COMMAND DECK</span>
+              <span class="deck-sub" id="deck-clock"></span>
+            </div>
+            <div class="deck-grid">
+              <div class="deck-panel">
+                <div class="deck-panel-h">System Vitals</div>
+                <div id="deck-vitals"></div>
+              </div>
+              <div class="deck-panel">
+                <div class="deck-panel-h">Active Forges</div>
+                <div id="deck-forges"></div>
+              </div>
+              <div class="deck-panel">
+                <div class="deck-panel-h">Summon</div>
+                <div id="deck-tiles"></div>
+              </div>
+            </div>
+            <div class="deck-hint">click a project to open a forge there &middot; esc to close</div>
+          </div>
         </div>
       </div>
     </div>

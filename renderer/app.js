@@ -270,6 +270,116 @@ function makeDraggable(handle, axis) {
 makeDraggable($("split-v"), "x");
 makeDraggable($("split-h"), "y");
 
+// ============ Command Deck (dashboard) ============
+let deckOpen = false;
+let lastStats = {};
+const deckEl = $("deck");
+
+function fmtUptime(s) {
+  if (!s) return "0m";
+  const h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+function renderDeckVitals() {
+  const s = lastStats;
+  const bar = (label, pct, detail) => {
+    pct = pct || 0;
+    return `<div class="vital">
+      <div class="vital-top"><span>${label}</span><span class="vital-pct">${pct}%</span></div>
+      <div class="vital-bar"><div class="vital-fill${pct > 85 ? " hot" : ""}" style="width:${pct}%"></div></div>
+      <div class="vital-detail">${detail || ""}</div>
+    </div>`;
+  };
+  const el = $("deck-vitals");
+  if (!el) return;
+  el.innerHTML =
+    bar("CPU Load", s.cpu, s.cores ? `${s.cores} cores` : "") +
+    bar("Memory", s.mem, s.memUsedGB != null ? `${s.memUsedGB} / ${s.memTotalGB} GB` : "") +
+    bar("Disk (C:)", s.diskPct, s.diskFreeGB != null ? `${s.diskFreeGB} GB free` : "") +
+    `<div class="deck-stats">
+       <span class="deck-stat">FORGE LIT <b>${fmtUptime(s.uptime)}</b></span>
+       <span class="deck-stat">FIRES <b>${forges.size}</b></span>
+     </div>`;
+}
+
+function renderDeckForges() {
+  const el = $("deck-forges");
+  if (!el) return;
+  if (!order.length) {
+    el.innerHTML = `<div class="roster-empty">No fires lit. Summon one &rarr;</div>`;
+    return;
+  }
+  el.innerHTML = order
+    .map((id) => {
+      const f = forges.get(id);
+      if (!f) return "";
+      return `<div class="roster-item" data-id="${id}">
+        <span class="roster-flame">⚒</span>
+        <span class="roster-name">${f.title}</span>
+        <span class="roster-live"></span>
+      </div>`;
+    })
+    .join("");
+  el.querySelectorAll(".roster-item").forEach((it) => {
+    it.addEventListener("click", () => {
+      focusPane(+it.dataset.id);
+      closeDeck();
+    });
+  });
+}
+
+function renderDeckTiles() {
+  const el = $("deck-tiles");
+  if (!el) return;
+  const projects = (window.HF_PROJECTS || []).slice(0, 10);
+  const tiles = [
+    `<div class="tile summon" data-act="forge"><div class="tile-name">⚒ New Forge</div><div class="tile-div">powershell</div></div>`,
+    `<div class="tile summon" data-act="claude"><div class="tile-name">\u{1F702} Summon Claude</div><div class="tile-div">claude code</div></div>`,
+  ].concat(
+    projects.map(
+      (p, i) =>
+        `<div class="tile" data-proj="${i}"><div class="tile-name">${p.name}</div><div class="tile-div">${p.div}</div></div>`
+    )
+  );
+  el.className = "deck-tiles";
+  el.innerHTML = tiles.join("");
+  el.querySelectorAll(".tile").forEach((t) => {
+    t.addEventListener("click", () => {
+      if (t.dataset.act === "forge") summon("shell");
+      else if (t.dataset.act === "claude") summon("claude");
+      else if (t.dataset.proj != null) {
+        const p = projects[+t.dataset.proj];
+        summon("shell", { cwd: p.path, label: p.name });
+      }
+      closeDeck();
+    });
+  });
+}
+
+function openDeck() {
+  deckOpen = true;
+  deckEl.classList.remove("hidden");
+  renderDeckVitals();
+  renderDeckForges();
+  renderDeckTiles();
+}
+function closeDeck() {
+  deckOpen = false;
+  deckEl.classList.add("hidden");
+  const f = forges.get(activeId);
+  if (f) f.term.focus();
+}
+function toggleDeck() {
+  deckOpen ? closeDeck() : openDeck();
+}
+$("slot-forges").addEventListener("click", toggleDeck);
+setInterval(() => {
+  const c = $("deck-clock");
+  if (c && deckOpen) c.textContent = new Date().toLocaleTimeString();
+}, 1000);
+
 function extinguish(id) {
   const f = forges.get(id);
   if (!f) return;
@@ -314,13 +424,15 @@ if (window.hellforge) {
         "\r\n\x1b[38;2;255;122;38m⚒ the fire has gone out. close the tab, or relight elsewhere.\x1b[0m\r\n"
       );
   });
-  window.hellforge.onStats(({ cpu, mem }) => {
+  window.hellforge.onStats((s) => {
+    lastStats = s;
     const gf = $("gauge-fill"),
       gv = $("gauge-val");
-    if (gf) gf.style.height = HFCore.gaugeHeight(cpu) + "%";
-    if (gv) gv.textContent = cpu;
+    if (gf) gf.style.height = HFCore.gaugeHeight(s.cpu) + "%";
+    if (gv) gv.textContent = s.cpu;
     const g = document.querySelector(".gauge-label");
-    if (g) g.title = `CPU ${cpu}% · RAM ${mem}%`;
+    if (g) g.title = `CPU ${s.cpu}% · RAM ${s.mem}%`;
+    if (deckOpen) renderDeckVitals();
   });
 }
 
@@ -603,6 +715,14 @@ window.addEventListener("keydown", (e) => {
   if (e.ctrlKey && e.key === "0") {
     e.preventDefault();
     setFontSize(14.5);
+  }
+  if (e.ctrlKey && e.key === "`") {
+    e.preventDefault();
+    toggleDeck();
+  }
+  if (e.key === "Escape" && deckOpen) {
+    e.preventDefault();
+    closeDeck();
   }
 });
 

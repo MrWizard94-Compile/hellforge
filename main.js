@@ -41,11 +41,27 @@ function cpuPercent() {
   lastCpu = cur;
   return dt > 0 ? Math.max(0, Math.min(100, 100 * (1 - di / dt))) : 0;
 }
+function diskStats() {
+  try {
+    const s = fs.statfsSync(process.platform === "win32" ? "C:\\" : "/");
+    const total = s.blocks * s.bsize;
+    const free = s.bavail * s.bsize;
+    return { diskPct: Math.round(100 * (1 - free / total)), diskFreeGB: +(free / 1e9).toFixed(1) };
+  } catch {
+    return { diskPct: 0, diskFreeGB: 0 };
+  }
+}
 setInterval(() => {
   if (win && !win.isDestroyed()) {
+    const total = os.totalmem();
     win.webContents.send("sys:stats", {
       cpu: Math.round(cpuPercent()),
-      mem: Math.round(100 * (1 - os.freemem() / os.totalmem())),
+      mem: Math.round(100 * (1 - os.freemem() / total)),
+      memUsedGB: +((total - os.freemem()) / 1e9).toFixed(1),
+      memTotalGB: +(total / 1e9).toFixed(1),
+      cores: os.cpus().length,
+      uptime: Math.round(process.uptime()),
+      ...diskStats(),
     });
   }
 }, 2000);

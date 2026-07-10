@@ -863,6 +863,252 @@ body {
   color: #c9b79c;
 }
 
+/* ---------- Command Deck (dashboard) ---------- */
+.slot {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.slot:hover {
+  border-color: var(--ember);
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.6),
+    0 0 16px rgba(255, 122, 38, 0.3);
+}
+.slot-deck-hint {
+  font-family: "Cinzel", serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #6a5a44;
+  margin-top: 3px;
+}
+.slot:hover .slot-deck-hint {
+  color: var(--ember);
+}
+
+#deck {
+  position: absolute;
+  inset: 12px 6px 10px 6px;
+  z-index: 30;
+  background: radial-gradient(ellipse at 50% 0%, rgba(30, 14, 6, 0.72), rgba(6, 4, 3, 0.9));
+  backdrop-filter: blur(3px);
+  border: 1px solid rgba(92, 58, 30, 0.6);
+  border-radius: 9px;
+  overflow: auto;
+  animation: deckin 0.25s ease-out;
+}
+#deck.hidden {
+  display: none;
+}
+@keyframes deckin {
+  0% {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.deck-inner {
+  padding: 22px 26px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.deck-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid rgba(92, 58, 30, 0.4);
+  padding-bottom: 12px;
+  margin-bottom: 18px;
+}
+.deck-title {
+  font-family: "Cinzel Decorative", serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: #ffd9b0;
+  text-shadow: 0 0 16px rgba(255, 122, 38, 0.4);
+}
+.deck-sub {
+  font-family: "Consolas", monospace;
+  font-size: 12px;
+  color: #9a8468;
+}
+.deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  flex: 1;
+}
+.deck-panel {
+  background: linear-gradient(180deg, rgba(26, 17, 10, 0.7), rgba(12, 8, 5, 0.6));
+  border: 1px solid rgba(92, 58, 30, 0.5);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow:
+    inset 0 0 30px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 122, 38, 0.05);
+}
+.deck-panel-h {
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #cf8a52;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(92, 58, 30, 0.3);
+}
+/* vitals */
+.vital {
+  margin-bottom: 15px;
+}
+.vital-top {
+  display: flex;
+  justify-content: space-between;
+  font-family: "Cinzel", serif;
+  font-size: 12px;
+  color: #c9b79c;
+  margin-bottom: 5px;
+}
+.vital-pct {
+  font-family: "Consolas", monospace;
+  color: #ffcf8a;
+  font-weight: 700;
+}
+.vital-bar {
+  height: 9px;
+  border-radius: 5px;
+  background: #0a0503;
+  border: 1px solid #3a2c22;
+  overflow: hidden;
+}
+.vital-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #e0330c, #ff6a1a 55%, #ffb43a);
+  box-shadow: 0 0 10px rgba(255, 110, 30, 0.6);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.3, 1);
+}
+.vital-fill.hot {
+  background: linear-gradient(90deg, #ff3010, #ff5a12 60%, #fff2cf);
+}
+.vital-detail {
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  color: #8a7f72;
+  margin-top: 3px;
+}
+.deck-stats {
+  display: flex;
+  gap: 18px;
+  margin-top: 6px;
+}
+.deck-stat {
+  font-family: "Consolas", monospace;
+  font-size: 11px;
+  color: #9a8468;
+}
+.deck-stat b {
+  color: #ffcf8a;
+  font-weight: 700;
+}
+/* forge roster */
+.roster-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.roster-item:hover {
+  background: rgba(255, 122, 38, 0.07);
+  border-color: #5c3a1e;
+}
+.roster-flame {
+  color: #d9a54e;
+  font-size: 13px;
+  filter: drop-shadow(0 0 4px rgba(255, 110, 30, 0.5));
+}
+.roster-name {
+  font-family: "Cinzel", serif;
+  font-size: 13px;
+  color: #ecdfc8;
+}
+.roster-live {
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff6a1a;
+  box-shadow: 0 0 8px rgba(255, 110, 30, 0.8);
+  animation: pulse 2s ease-in-out infinite;
+}
+.roster-empty {
+  font-family: "Cinzel", serif;
+  font-size: 12px;
+  color: #7a6650;
+  font-style: italic;
+  padding: 8px 4px;
+}
+/* project tiles */
+.deck-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tile {
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(40, 26, 16, 0.6), rgba(14, 9, 6, 0.7));
+  border: 1px solid #3d2c20;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tile:hover {
+  border-color: var(--ember);
+  box-shadow: 0 0 14px rgba(255, 122, 38, 0.25);
+  transform: translateY(-1px);
+}
+.tile-name {
+  font-family: "Cinzel", serif;
+  font-size: 12.5px;
+  color: #ecdfc8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile-div {
+  font-family: "Consolas", monospace;
+  font-size: 9.5px;
+  color: #8a7f72;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.tile.summon {
+  border-color: #5c3a1e;
+}
+.tile.summon .tile-name {
+  color: #ffd9b0;
+}
+.deck-hint {
+  text-align: center;
+  margin-top: 16px;
+  font-family: "Cinzel", serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #7a6650;
+}
+
 /* ---------- embers ---------- */
 #embers {
   position: fixed;
