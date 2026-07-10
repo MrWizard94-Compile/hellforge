@@ -1,13 +1,23 @@
-/* ============ HELLFORGE v3 — Sanctuary-grade ============ */
+/* ============ HELLFORGE v4 — Concept plate (HellForge.png) ============
+ * Design source of truth: ../HellForge.png (cinematic Sanctuary UI).
+ * hellscape.png is a clean plate derived from that art (frame + wall + fire,
+ * no baked-in chrome). Live UI is glass over the plate.
+ */
 :root {
-  --coal: #0c0907;
-  --ember: #ff7a26;
-  --magma: #e8451c;
-  --deepfire: #7a1d0f;
-  --ash: #9a8b78;
-  --bone: #ecdfc8;
-  --gold: #d9a54e;
-  --glow: rgba(255, 122, 38, 0.55);
+  --coal: #050403;
+  --ember: #ff6a1a;
+  --magma: #e03a12;
+  --deepfire: #6a1408;
+  --ash: #8a7a68;
+  --bone: #e8dcc8;
+  --gold: #c9923e;
+  --glow: rgba(255, 90, 20, 0.55);
+  /* inset so chrome sits inside the ornate frame of hellscape.png */
+  --frame-pad-t: 5.4%;
+  --frame-pad-x: 5.6%;
+  --frame-pad-b: 12.2%;
+  --panel: rgba(8, 6, 5, 0.55);
+  --panel-edge: rgba(70, 42, 28, 0.55);
 }
 
 * {
@@ -22,47 +32,48 @@ body {
   height: 100%;
   overflow: hidden;
   font-family: "Cinzel", Georgia, serif;
+  background: #000;
 }
 
 body {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  border: 28px solid transparent;
-  border-image: url("frame.png") 120 / 28px / 0 round;
+  /* no CSS border-image — the plate carries the real gothic frame */
+  border: none;
+  padding: var(--frame-pad-t) var(--frame-pad-x) var(--frame-pad-b);
   background:
-    linear-gradient(180deg, rgba(5, 3, 2, 0.55) 0%, rgba(5, 3, 2, 0.15) 55%, rgba(5, 3, 2, 0) 100%),
-    url("hellscape.png") center bottom / cover no-repeat,
-    var(--coal);
+    url("hellscape.png") center center / 100% 100% no-repeat,
+    #000;
 }
 
-/* frame now lives on the body border; the div is unused */
+/* old 9-slice frame div unused */
 #frame {
   display: none;
 }
 
-/* ---------- titlebar: forged iron ---------- */
+/* ---------- titlebar: translucent slag glass ---------- */
 #titlebar {
-  height: 46px;
+  height: 42px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   -webkit-app-region: drag;
   background: linear-gradient(
     180deg,
-    rgba(36, 25, 15, 0.96) 0%,
-    rgba(20, 14, 9, 0.97) 50%,
-    rgba(10, 7, 5, 0.98) 100%
+    rgba(10, 8, 7, 0.72) 0%,
+    rgba(6, 5, 4, 0.55) 100%
   );
-  border-top: 1px solid rgba(255, 170, 90, 0.14);
-  border-bottom: 1px solid #000;
+  border: 1px solid var(--panel-edge);
+  border-bottom-color: rgba(255, 90, 20, 0.18);
+  border-radius: 4px 4px 0 0;
   box-shadow:
-    inset 0 1px 0 rgba(255, 190, 120, 0.12),
-    0 1px 0 rgba(255, 122, 38, 0.2),
-    0 4px 20px rgba(0, 0, 0, 0.85);
+    inset 0 1px 0 rgba(255, 140, 60, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.45);
   padding: 0 12px 0 16px;
   position: relative;
   z-index: 100;
+  backdrop-filter: blur(2px);
 }
 
 #brand {
@@ -163,12 +174,14 @@ body {
 
 /* ---------- tab bar with molten seam ---------- */
 #tabbar {
-  height: 42px;
+  height: 40px;
   display: flex;
   justify-content: flex-start;
   align-items: flex-end;
   gap: 10px;
-  background: linear-gradient(180deg, rgba(16, 11, 7, 0.9), rgba(10, 7, 5, 0.82));
+  background: linear-gradient(180deg, rgba(8, 6, 5, 0.5), rgba(5, 4, 3, 0.35));
+  border-left: 1px solid var(--panel-edge);
+  border-right: 1px solid var(--panel-edge);
   padding: 0 14px;
   position: relative;
   z-index: 90;
@@ -307,6 +320,44 @@ body {
   background: rgba(122, 29, 15, 0.6);
 }
 
+/* Role-colored left flame edge on tabs */
+.tab.role-orchestrator {
+  border-left: 3px solid #ff7a26;
+  box-shadow: inset 3px 0 10px rgba(255, 122, 38, 0.12);
+}
+.tab.role-executor {
+  border-left: 3px solid #7fd0ff;
+  box-shadow: inset 3px 0 10px rgba(127, 208, 255, 0.1);
+}
+.tab.role-local {
+  border-left: 3px solid #a3c76d;
+  box-shadow: inset 3px 0 10px rgba(163, 199, 109, 0.1);
+}
+.tab.role-shell {
+  border-left: 3px solid #8a7a68;
+  box-shadow: inset 3px 0 8px rgba(138, 122, 104, 0.08);
+}
+.tab.role-orchestrator .flame {
+  color: #ff9a4d;
+  filter: drop-shadow(0 0 5px rgba(255, 122, 38, 0.65));
+}
+.tab.role-executor .flame {
+  color: #9ad8ff;
+  filter: drop-shadow(0 0 5px rgba(127, 208, 255, 0.55));
+}
+.tab.role-local .flame {
+  color: #b6d886;
+  filter: drop-shadow(0 0 5px rgba(163, 199, 109, 0.5));
+}
+.tab.dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+.tab.drag-over {
+  border-left-color: var(--ember) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 122, 38, 0.45);
+}
+
 #summon {
   display: flex;
   gap: 8px;
@@ -336,39 +387,9 @@ body {
     inset 0 0 10px rgba(255, 122, 38, 0.12);
 }
 
-/* ---------- demonic crest over the titlebar ---------- */
+/* Crest lives in the concept plate frame — hide the old SVG crest asset */
 #crest {
-  position: absolute;
-  top: 1px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 306px;
-  height: 142px;
-  background: url("crest.png") center top / contain no-repeat;
-  pointer-events: none;
-  z-index: 200;
-  animation: crestflicker 5.5s ease-in-out infinite;
-}
-/* eyes/sigil are baked into the PNG; a brightness + ember-glow pulse makes them
-   flicker like live coals */
-@keyframes crestflicker {
-  0%,
-  100% {
-    filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.85))
-      drop-shadow(0 0 20px rgba(255, 90, 20, 0.18)) brightness(1);
-  }
-  42% {
-    filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.85))
-      drop-shadow(0 0 30px rgba(255, 110, 30, 0.4)) brightness(1.13);
-  }
-  55% {
-    filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 18px rgba(255, 90, 20, 0.2))
-      brightness(0.96);
-  }
-  70% {
-    filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.85))
-      drop-shadow(0 0 26px rgba(255, 110, 30, 0.32)) brightness(1.07);
-  }
+  display: none;
 }
 
 /* ---------- main row: sidebar + stage ---------- */
@@ -378,108 +399,188 @@ body {
   min-height: 0;
   position: relative;
   z-index: 10;
+  border-left: 1px solid var(--panel-edge);
+  border-right: 1px solid var(--panel-edge);
+  background: rgba(0, 0, 0, 0.12);
 }
 
-/* ---------- left sidebar: forge console ---------- */
+/* ---------- left sidebar: forge console (concept cards) ---------- */
 #sidebar {
-  width: 150px;
+  width: 132px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 14px 8px;
-  background: linear-gradient(180deg, rgba(16, 11, 7, 0.72), rgba(9, 6, 4, 0.62));
-  border-right: 1px solid rgba(92, 58, 30, 0.5);
-  box-shadow:
-    inset -14px 0 26px -18px rgba(232, 69, 28, 0.5),
-    2px 0 12px rgba(255, 110, 30, 0.25);
+  gap: 10px;
+  padding: 12px 8px;
+  background: linear-gradient(180deg, rgba(6, 5, 4, 0.42), rgba(4, 3, 2, 0.28));
+  border-right: 1px solid rgba(255, 80, 20, 0.12);
+  box-shadow: inset -10px 0 28px -20px rgba(255, 70, 15, 0.35);
   position: relative;
 }
 #sidebar::after {
   content: "";
   position: absolute;
-  top: 6px;
-  bottom: 6px;
-  right: -1px;
-  width: 2px;
+  top: 10%;
+  bottom: 10%;
+  right: 0;
+  width: 1px;
   background: linear-gradient(
     180deg,
     transparent,
-    var(--magma) 20%,
-    #ffb35c 50%,
-    var(--magma) 80%,
+    rgba(255, 90, 20, 0.35) 30%,
+    rgba(255, 140, 50, 0.55) 50%,
+    rgba(255, 90, 20, 0.35) 70%,
     transparent
   );
-  box-shadow: 0 0 12px var(--glow);
-  opacity: 0.8;
+  box-shadow: 0 0 10px rgba(255, 90, 20, 0.35);
+  opacity: 0.7;
 }
 
 .slot {
-  width: 118px;
-  padding: 8px 0 6px;
+  width: 108px;
+  padding: 10px 0 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: linear-gradient(180deg, rgba(40, 26, 16, 0.6), rgba(14, 9, 6, 0.7));
-  border: 1px solid #4a3524;
-  border-radius: 6px;
+  background: linear-gradient(165deg, rgba(22, 16, 12, 0.78), rgba(8, 6, 5, 0.82));
+  border: 1px solid rgba(90, 50, 30, 0.65);
+  border-radius: 8px;
   box-shadow:
-    inset 0 0 14px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 122, 38, 0.05);
+    inset 0 0 18px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 120, 40, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 4px 14px rgba(0, 0, 0, 0.45);
   position: relative;
 }
 .slot-skull {
-  font-size: 30px;
-  color: #b78a5a;
+  font-size: 26px;
+  color: #c4a07a;
   line-height: 1;
-  text-shadow: 0 0 10px rgba(255, 122, 38, 0.4);
+  text-shadow:
+    0 0 12px rgba(255, 90, 20, 0.45),
+    0 2px 4px #000;
 }
 .slot-label {
   font-family: "Cinzel", serif;
-  font-size: 8.5px;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--ash);
+  letter-spacing: 2.5px;
+  color: #9a8468;
 }
 .slot-count {
   font-family: "Cinzel Decorative", serif;
   font-weight: 900;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
-  color: #ffd9a0;
-  text-shadow: 0 0 12px rgba(255, 140, 50, 0.6);
+  color: #ffc878;
+  text-shadow:
+    0 0 14px rgba(255, 100, 20, 0.7),
+    0 0 4px rgba(255, 160, 40, 0.5);
 }
 
 .rune {
-  width: 54px;
-  height: 54px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  color: #d9a54e;
-  background: radial-gradient(circle at 38% 32%, #3a2c20, #140d09 70%);
-  border: 2px solid #5c3a1e;
+  font-size: 18px;
+  color: #e0a850;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(60, 36, 22, 0.95), rgba(10, 7, 5, 0.98) 72%),
+    #120c08;
+  border: 1.5px solid rgba(120, 60, 28, 0.75);
   box-shadow:
-    inset 0 0 10px rgba(0, 0, 0, 0.7),
-    0 2px 5px rgba(0, 0, 0, 0.6);
+    inset 0 0 12px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 rgba(255, 140, 50, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 3px 10px rgba(0, 0, 0, 0.55);
   cursor: pointer;
   transition: all 0.15s;
-  text-shadow: 0 0 8px rgba(255, 122, 38, 0.4);
+  text-shadow: 0 0 10px rgba(255, 100, 20, 0.45);
 }
 .rune:hover {
   color: #ffe4c4;
   border-color: var(--ember);
   box-shadow:
-    inset 0 0 14px rgba(255, 122, 38, 0.25),
-    0 0 18px rgba(255, 122, 38, 0.5);
+    inset 0 0 16px rgba(255, 90, 20, 0.28),
+    0 0 20px rgba(255, 80, 15, 0.45);
   transform: translateY(-1px);
 }
 .rune:active {
   transform: translateY(1px);
+}
+
+/* Pinned project runes under FORGES slot */
+#sidebar-pins {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-height: 148px;
+  overflow-y: auto;
+  padding: 0 2px;
+}
+#sidebar-pins:empty {
+  display: none;
+}
+#sidebar-pins::-webkit-scrollbar {
+  width: 4px;
+}
+#sidebar-pins::-webkit-scrollbar-thumb {
+  background: #3a2412;
+  border-radius: 3px;
+}
+.pin-rune {
+  width: 108px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: linear-gradient(165deg, rgba(36, 24, 14, 0.85), rgba(10, 7, 5, 0.9));
+  border: 1px solid rgba(120, 70, 30, 0.55);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+}
+.pin-rune:hover {
+  border-color: var(--ember);
+  box-shadow: 0 0 12px rgba(255, 122, 38, 0.3);
+}
+.pin-rune-star {
+  color: #ffcf8a;
+  font-size: 11px;
+  flex-shrink: 0;
+  text-shadow: 0 0 6px rgba(255, 160, 40, 0.55);
+}
+.pin-rune-name {
+  flex: 1;
+  min-width: 0;
+  font-family: "Cinzel", serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #ecdfc8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.3px;
+}
+.pin-rune-x {
+  flex-shrink: 0;
+  color: #5c5044;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.pin-rune-x:hover {
+  color: #ffb59b;
+  background: rgba(122, 29, 15, 0.55);
 }
 
 /* decorative filament filling the sidebar's middle space */
@@ -534,12 +635,14 @@ body {
   line-height: 1.3;
 }
 .gauge-tube {
-  width: 26px;
-  height: 150px;
-  border-radius: 13px;
-  background: linear-gradient(180deg, #0a0503, #16100a);
-  border: 2px solid #4a3524;
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.85);
+  width: 22px;
+  height: 140px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #080504, #14100a);
+  border: 1.5px solid rgba(90, 50, 28, 0.8);
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.9),
+    0 0 12px rgba(255, 80, 15, 0.15);
   overflow: hidden;
   position: relative;
   display: flex;
@@ -585,16 +688,17 @@ body {
   text-shadow: 0 0 10px rgba(255, 140, 50, 0.6);
 }
 
-/* ---------- lava drips from the top edge ---------- */
+/* ---------- lava drips (concept plate already has frame drips — keep subtle) ---------- */
 #drips {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: 40px;
   pointer-events: none;
   z-index: 6;
   overflow: hidden;
+  opacity: 0.35;
 }
 .drip {
   position: absolute;
@@ -756,20 +860,21 @@ body {
   display: none;
   min-width: 0;
   min-height: 0;
-  border: 1px solid rgba(92, 58, 30, 0.5);
-  border-radius: 8px;
+  border: 1px solid rgba(60, 36, 24, 0.35);
+  border-radius: 6px;
+  /* darker top glass so text reads; fades so the fire pit shows through the bottom */
   background: linear-gradient(
     180deg,
-    rgba(7, 4, 3, var(--glass-top, 0.5)) 0%,
-    rgba(7, 4, 3, calc(var(--glass-top, 0.5) * 0.64)) 45%,
-    rgba(9, 5, 3, calc(var(--glass-top, 0.5) * 0.32)) 78%,
-    rgba(12, 6, 3, var(--glass-bot, 0.05)) 100%
+    rgba(4, 3, 2, var(--glass-top, 0.62)) 0%,
+    rgba(5, 3, 2, calc(var(--glass-top, 0.62) * 0.55)) 40%,
+    rgba(8, 4, 2, calc(var(--glass-top, 0.62) * 0.22)) 72%,
+    rgba(12, 5, 2, var(--glass-bot, 0.04)) 100%
   );
   box-shadow:
-    inset 0 -20px 50px -26px rgba(232, 69, 28, 0.5),
-    0 0 0 1px rgba(255, 122, 38, 0.06),
-    0 0 40px rgba(0, 0, 0, 0.5);
-  padding: 12px;
+    inset 0 -28px 60px -24px rgba(255, 70, 10, 0.35),
+    inset 0 0 0 1px rgba(255, 100, 30, 0.04),
+    0 0 40px rgba(0, 0, 0, 0.35);
+  padding: 14px 16px;
 }
 .term-holder.shown {
   display: block;
@@ -1071,11 +1176,16 @@ body {
   border: 1px solid #3d2c20;
   cursor: pointer;
   transition: all 0.15s;
+  position: relative;
 }
 .tile:hover {
   border-color: var(--ember);
   box-shadow: 0 0 14px rgba(255, 122, 38, 0.25);
   transform: translateY(-1px);
+}
+.tile.pinned {
+  border-color: rgba(201, 146, 62, 0.55);
+  box-shadow: inset 0 0 12px rgba(201, 146, 62, 0.08);
 }
 .tile-name {
   font-family: "Cinzel", serif;
@@ -1084,6 +1194,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-right: 16px;
 }
 .tile-div {
   font-family: "Consolas", monospace;
@@ -1098,6 +1209,11 @@ body {
 }
 .tile.summon .tile-name {
   color: #ffd9b0;
+}
+.tile .pin-star {
+  position: absolute;
+  top: 6px;
+  right: 8px;
 }
 .deck-hint {
   text-align: center;
@@ -1382,6 +1498,49 @@ body {
 .council-msg[data-role="local"] .council-from {
   color: #b6d886;
 }
+.council-search-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid rgba(92, 58, 30, 0.35);
+  background: rgba(12, 8, 5, 0.35);
+}
+#council-search {
+  flex: 1;
+  min-width: 0;
+  background: #140d08;
+  color: #f0e6d4;
+  border: 1px solid #4a3524;
+  border-radius: 6px;
+  padding: 7px 11px;
+  font-family: "Consolas", monospace;
+  font-size: 12.5px;
+}
+#council-search:focus {
+  outline: none;
+  border-color: var(--ember);
+  box-shadow: 0 0 10px rgba(255, 122, 38, 0.25);
+}
+#council-export {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #ffd9b0;
+  background: linear-gradient(180deg, rgba(74, 46, 24, 0.65), rgba(28, 17, 10, 0.9));
+  border: 1px solid #5c3a1e;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+#council-export:hover {
+  border-color: var(--ember);
+  box-shadow: 0 0 14px rgba(255, 122, 38, 0.35);
+  color: #fff;
+}
 .council-compose {
   display: flex;
   gap: 8px;
@@ -1534,13 +1693,13 @@ body {
   color: #ffb060;
 }
 
-/* ---------- embers ---------- */
+/* ---------- embers (concept fire is baked in — keep floating ash subtle) ---------- */
 #embers {
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 50;
-  opacity: 0.85;
+  opacity: 0.28;
 }
 
 /* ---------- command palette ---------- */
@@ -1614,6 +1773,31 @@ body {
 }
 .pal-item:hover {
   background: rgba(255, 122, 38, 0.06);
+}
+.pin-star {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #5c5044;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.12s;
+  user-select: none;
+}
+.pin-star:hover {
+  color: #ffcf8a;
+  background: rgba(255, 160, 40, 0.1);
+}
+.pin-star.on {
+  color: #ffcf8a;
+  text-shadow: 0 0 8px rgba(255, 180, 60, 0.55);
+}
+.pal-item .pin-star {
+  margin-left: 4px;
 }
 .pal-icon {
   width: 30px;
@@ -1864,7 +2048,7 @@ body {
 
 /* ---------- status bar: cooling slag ---------- */
 #statusbar {
-  height: 27px;
+  height: 26px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1875,8 +2059,10 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--ash);
-  background: linear-gradient(180deg, rgba(18, 12, 8, 0.94), rgba(8, 5, 4, 0.97));
-  border-top: 1px solid rgba(92, 58, 30, 0.45);
+  background: linear-gradient(180deg, rgba(8, 6, 5, 0.55), rgba(5, 4, 3, 0.7));
+  border: 1px solid var(--panel-edge);
+  border-top-color: rgba(255, 90, 20, 0.15);
+  border-radius: 0 0 4px 4px;
   position: relative;
   z-index: 90;
 }

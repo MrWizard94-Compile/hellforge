@@ -8,6 +8,7 @@ const HFCore = require("../renderer/core.js");
 const {
   fuzzy,
   rankItems,
+  rankItemsWithPins,
   visibleIds,
   layoutClass,
   buildShellArgs,
@@ -19,6 +20,14 @@ const {
   nextActiveAfterClose,
   fmtUptime,
   parseGitStatus,
+  sanitizeFilename,
+  journalFilename,
+  journalMarkdown,
+  normalizePins,
+  togglePin,
+  isPinned,
+  reorderTabs,
+  roleTabClass,
   BUSY_MIN_MS,
   IDLE_MS,
 } = HFCore;
@@ -286,6 +295,204 @@ test("parseGitStatus tolerates empty/garbage/null", () => {
   assert.equal(g.dirty, 2); // non-# lines count as changes
 });
 
+// ---------- sanitizeFilename ----------
+test("sanitizeFilename strips path separators and illegal Windows chars", () => {
+  assert.equal(sanitizeFilename('foo/bar\\baz:qux*<>?"|'), "foobarbazqux");
+  assert.equal(sanitizeFilename("normal-name_1"), "normal-name_1");
+  assert.equal(sanitizeFilename("  spaced  "), "spaced");
+});
+test("sanitizeFilename falls back to forge when empty after strip", () => {
+  assert.equal(sanitizeFilename(""), "forge");
+  assert.equal(sanitizeFilename(null), "forge");
+  assert.equal(sanitizeFilename(undefined), "forge");
+  assert.equal(sanitizeFilename("///"), "forge");
+  assert.equal(sanitizeFilename(":::"), "forge");
+  assert.equal(sanitizeFilename("..."), "forge");
+  assert.equal(sanitizeFilename(42), "42");
+});
+
+// ---------- journalFilename ----------
+test("journalFilename builds local-time stamp + sanitized label", () => {
+  // Construct a known local Date so the stamp is deterministic in this TZ.
+  const d = new Date(2024, 0, 5, 9, 7, 3); // local Jan 5 2024 09:07:03
+  const name = journalFilename("My Project", d.getTime());
+  assert.match(name, /^journal-\d{8}-\d{6}-My Project\.md$/);
+  assert.equal(name, "journal-20240105-090703-My Project.md");
+});
+test("journalFilename sanitizes label and tolerates bad time", () => {
+  const name = journalFilename("a/b:c", null);
+  assert.ok(name.startsWith("journal-"));
+  assert.ok(name.endsWith("-abc.md"));
+  assert.equal(journalFilename("", 0).endsWith("-forge.md"), true);
+});
+
+// ---------- journalMarkdown ----------
+test("journalMarkdown emits YAML-ish header + body", () => {
+  const md = journalMarkdown({
+    title: "Session",
+    kind: "claude",
+    cwd: "C:\\WPAI",
+    savedAt: "2024-01-05T09:07:03",
+    body: "hello\nworld",
+  });
+  assert.ok(md.startsWith("---\n"));
+  assert.ok(md.includes("title: Session\n"));
+  assert.ok(md.includes("kind: claude\n"));
+  assert.ok(md.includes("cwd: C:\\WPAI\n"));
+  assert.ok(md.includes("savedAt: 2024-01-05T09:07:03\n"));
+  assert.ok(md.includes("---\n\nhello\nworld"));
+});
+test("journalMarkdown string-coerces and is null-safe", () => {
+  const md = journalMarkdown({ title: null, kind: 7, cwd: undefined, savedAt: false, body: null });
+  assert.ok(md.includes("title: \n"));
+  assert.ok(md.includes("kind: 7\n"));
+  assert.ok(md.includes("cwd: \n"));
+  assert.ok(md.includes("savedAt: false\n"));
+  assert.ok(md.endsWith("---\n\n") || md.endsWith("---\n\n"));
+  // garbage opts
+  assert.ok(typeof journalMarkdown(null) === "string");
+  assert.ok(typeof journalMarkdown(undefined) === "string");
+  assert.ok(typeof journalMarkdown("x") === "string");
+  assert.ok(typeof journalMarkdown([]) === "string");
+});
+
+// ---------- normalizePins / togglePin / isPinned ----------
+test("normalizePins: unique non-empty strings, max 40", () => {
+  assert.deepEqual(normalizePins(["a", "b", "a", "", "  ", null, "c"]), ["a", "b", "c"]);
+  assert.deepEqual(normalizePins('["/x","/y","/x"]'), ["/x", "/y"]);
+  const many = Array.from({ length: 50 }, (_, i) => "/p" + i);
+  assert.equal(normalizePins(many).length, 40);
+  assert.equal(normalizePins(many)[0], "/p0");
+  assert.equal(normalizePins(many)[39], "/p39");
+});
+test("normalizePins is garbage-safe", () => {
+  assert.deepEqual(normalizePins(null), []);
+  assert.deepEqual(normalizePins(undefined), []);
+  assert.deepEqual(normalizePins({}), []);
+  assert.deepEqual(normalizePins("not json"), []);
+  assert.deepEqual(normalizePins("null"), []);
+  assert.deepEqual(normalizePins(42), []);
+  assert.deepEqual(normalizePins([1, 2, "  hi  "]), ["1", "2", "hi"]);
+});
+test("isPinned: membership by string path", () => {
+  assert.equal(isPinned(["/a", "/b"], "/a"), true);
+  assert.equal(isPinned(["/a", "/b"], "/c"), false);
+  assert.equal(isPinned(["/a"], null), false);
+  assert.equal(isPinned(["/a"], ""), false);
+  assert.equal(isPinned(null, "/a"), false);
+  assert.equal(isPinned(undefined, "/a"), false);
+});
+test("togglePin: add then remove; empty path no-op", () => {
+  const a = togglePin([], "/proj");
+  assert.deepEqual(a, ["/proj"]);
+  const b = togglePin(a, "/proj");
+  assert.deepEqual(b, []);
+  assert.deepEqual(togglePin(["/x"], ""), ["/x"]);
+  assert.deepEqual(togglePin(["/x"], null), ["/x"]);
+  assert.deepEqual(togglePin(["/x"], "   "), ["/x"]);
+  // does not mutate input
+  const orig = ["/a"];
+  const next = togglePin(orig, "/b");
+  assert.deepEqual(orig, ["/a"]);
+  assert.deepEqual(next, ["/a", "/b"]);
+});
+test("togglePin respects max 40 pins", () => {
+  const full = Array.from({ length: 40 }, (_, i) => "/p" + i);
+  const out = togglePin(full, "/new");
+  assert.equal(out.length, 40);
+  assert.equal(out.includes("/new"), false);
+  // can still remove when full
+  assert.equal(togglePin(full, "/p0").length, 39);
+});
+
+// ---------- rankItemsWithPins ----------
+test("rankItemsWithPins: pinned projects get +1000 and sort first on empty query", () => {
+  const items = [
+    { name: "Alpha", kind: "project", path: "/a" },
+    { name: "Beta", kind: "project", path: "/b" },
+    { name: "Gamma", kind: "spell", path: "/g" },
+  ];
+  const out = rankItemsWithPins(items, "", 10, ["/b"]);
+  assert.equal(out[0].name, "Beta");
+  assert.equal(out.length, 3);
+});
+test("rankItemsWithPins: only kind=project is boosted", () => {
+  const items = [
+    { name: "Alpha", kind: "spell", path: "/a" },
+    { name: "Beta", kind: "project", path: "/b" },
+  ];
+  const out = rankItemsWithPins(items, "", 10, ["/a", "/b"]);
+  assert.equal(out[0].name, "Beta"); // only /b is a project pin
+});
+test("rankItemsWithPins: query still ranks, pin boost helps ties", () => {
+  const items = [
+    { name: "Git status", kind: "spell", path: "/g" },
+    { name: "Git tools", kind: "project", path: "/p" },
+  ];
+  const out = rankItemsWithPins(items, "git", 10, ["/p"]);
+  assert.equal(out[0].name, "Git tools");
+  assert.equal(out.length, 2);
+});
+test("rankItemsWithPins: no pins behaves like rank (with sort on empty q)", () => {
+  const items = [
+    { name: "Zed", kind: "project", path: "/z" },
+    { name: "Aye", kind: "project", path: "/a" },
+  ];
+  const out = rankItemsWithPins(items, "", 10, []);
+  assert.equal(out.length, 2);
+  // without boost, empty-query scores are all 1 so stable relative order preserved by equal scores...
+  // our sort is b.s - a.s only; equal scores keep insertion order in modern V8 stable sort
+  assert.equal(out[0].name, "Zed");
+});
+test("rankItemsWithPins: caps limit and tolerates garbage", () => {
+  const items = Array.from({ length: 5 }, (_, i) => ({
+    name: "P" + i,
+    kind: "project",
+    path: "/p" + i,
+  }));
+  assert.equal(rankItemsWithPins(items, "", 2, ["/p4"]).length, 2);
+  assert.equal(rankItemsWithPins(items, "", 2, ["/p4"])[0].path, "/p4");
+  assert.deepEqual(rankItemsWithPins(null, "x", 10, null), []);
+  assert.deepEqual(rankItemsWithPins(items, "", 0, []), []);
+  assert.deepEqual(rankItemsWithPins(items, "", -1, []), []);
+});
+
+// ---------- reorderTabs ----------
+test("reorderTabs moves id from fromIndex to toIndex", () => {
+  assert.deepEqual(reorderTabs([10, 20, 30, 40], 0, 2), [20, 30, 10, 40]);
+  assert.deepEqual(reorderTabs([10, 20, 30, 40], 3, 0), [40, 10, 20, 30]);
+  assert.deepEqual(reorderTabs([10, 20, 30], 1, 1), [10, 20, 30]);
+});
+test("reorderTabs is garbage-safe (bad indices = copy)", () => {
+  assert.deepEqual(reorderTabs([1, 2, 3], -1, 1), [1, 2, 3]);
+  assert.deepEqual(reorderTabs([1, 2, 3], 0, 99), [1, 2, 3]);
+  assert.deepEqual(reorderTabs([1, 2, 3], 1.5, 0), [1, 2, 3]);
+  assert.deepEqual(reorderTabs([1, 2, 3], null, 0), [1, 2, 3]);
+  assert.deepEqual(reorderTabs(null, 0, 1), []);
+  assert.deepEqual(reorderTabs(undefined, 0, 1), []);
+  assert.deepEqual(reorderTabs("x", 0, 1), []);
+  // does not mutate
+  const o = [1, 2, 3];
+  reorderTabs(o, 0, 2);
+  assert.deepEqual(o, [1, 2, 3]);
+});
+
+// ---------- roleTabClass ----------
+test("roleTabClass maps known kinds", () => {
+  assert.equal(roleTabClass("claude"), "role-orchestrator");
+  assert.equal(roleTabClass("grok"), "role-executor");
+  assert.equal(roleTabClass("ollama"), "role-local");
+  assert.equal(roleTabClass("shell"), "role-shell");
+  assert.equal(roleTabClass("other"), "role-shell");
+});
+test("roleTabClass is case-insensitive and null-safe", () => {
+  assert.equal(roleTabClass("CLAUDE"), "role-orchestrator");
+  assert.equal(roleTabClass("Grok"), "role-executor");
+  assert.equal(roleTabClass(null), "role-shell");
+  assert.equal(roleTabClass(undefined), "role-shell");
+  assert.equal(roleTabClass(42), "role-shell");
+});
+
 // ---------- adversarial / fuzz: nothing should throw on bad input ----------
 const BADS = [undefined, null, NaN, 0, -1, "", "x", {}, [], true, () => {}, Infinity];
 function survives(fn) {
@@ -352,6 +559,40 @@ test("fuzz: fmtUptime + parseGitStatus never throw", () => {
     parseGitStatus(a);
   }
 });
+test("fuzz: sanitizeFilename / journalFilename / journalMarkdown never throw", () => {
+  for (const a of BADS) {
+    assert.equal(typeof sanitizeFilename(a), "string");
+    assert.equal(typeof journalFilename(a, a), "string");
+    assert.equal(typeof journalMarkdown(a), "string");
+  }
+  survives((a, b) => journalFilename(a, b));
+  survives((a) => journalMarkdown(a));
+});
+test("fuzz: pin helpers never throw + always array/bool", () => {
+  survives((a, b) => {
+    assert.ok(Array.isArray(normalizePins(a)));
+    assert.ok(Array.isArray(togglePin(a, b)));
+    assert.equal(typeof isPinned(a, b), "boolean");
+  });
+});
+test("fuzz: rankItemsWithPins never throws + always array", () => {
+  for (const items of [null, undefined, {}, "x", [null, { name: "a" }], 5]) {
+    assert.ok(Array.isArray(rankItemsWithPins(items, "a", 10, null)));
+  }
+  survives((a, b, c) => rankItemsWithPins(a, b, c, a));
+});
+test("fuzz: reorderTabs never throws + always array", () => {
+  survives((a, b, c) => {
+    const r = reorderTabs(a, b, c);
+    assert.ok(Array.isArray(r));
+  });
+});
+test("fuzz: roleTabClass always returns a role-* class", () => {
+  for (const a of BADS) {
+    const c = roleTabClass(a);
+    assert.ok(/^role-/.test(c), `bad class ${c}`);
+  }
+});
 
 // ---------- UMD: browser-context export path ----------
 test("core.js attaches HFCore to global when module is absent (browser)", () => {
@@ -363,4 +604,6 @@ test("core.js attaches HFCore to global when module is absent (browser)", () => 
   assert.equal(typeof sandbox.HFCore, "object");
   assert.equal(typeof sandbox.HFCore.fuzzy, "function");
   assert.equal(sandbox.HFCore.layoutClass(2), "l2");
+  assert.equal(sandbox.HFCore.roleTabClass("grok"), "role-executor");
+  assert.equal(sandbox.HFCore.sanitizeFilename(""), "forge");
 });

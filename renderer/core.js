@@ -217,9 +217,202 @@
     return { branch, ahead, behind, dirty };
   }
 
+  /**
+   * Strip path separators and illegal Windows filename characters.
+   * Falls back to "forge" when the result would be empty.
+   */
+  function sanitizeFilename(name) {
+    let s = String(name == null ? "" : name);
+    // Path separators + Windows-illegal: < > : " / \ | ? * and ASCII controls
+    let out = "";
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      const c = s.charCodeAt(i);
+      if (c < 32) continue;
+      if ('<>:"/\\|?*'.indexOf(ch) !== -1) continue;
+      out += ch;
+    }
+    s = out.replace(/^\.+/, "").trim();
+    return s || "forge";
+  }
+
+  /** Zero-pad a number to two digits (local-time journal stamps). */
+  function _pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+
+  /**
+   * Build a journal filename: `journal-YYYYMMDD-HHMMSS-<sanitized-label>.md`
+   * using the local timezone of `nowMs`.
+   */
+  function journalFilename(label, nowMs) {
+    const d = new Date(Number(nowMs) || 0);
+    const y = d.getFullYear();
+    const mo = _pad2(d.getMonth() + 1);
+    const day = _pad2(d.getDate());
+    const h = _pad2(d.getHours());
+    const mi = _pad2(d.getMinutes());
+    const s = _pad2(d.getSeconds());
+    const stamp = "" + y + mo + day + "-" + h + mi + s;
+    return "journal-" + stamp + "-" + sanitizeFilename(label) + ".md";
+  }
+
+  /**
+   * Markdown journal body with a YAML-ish front-matter header.
+   * All fields are string-coerced; null/undefined become empty strings.
+   */
+  function journalMarkdown(opts) {
+    const o = opts != null && typeof opts === "object" && !Array.isArray(opts) ? opts : {};
+    const str = (v) => (v == null ? "" : String(v));
+    const title = str(o.title);
+    const kind = str(o.kind);
+    const cwd = str(o.cwd);
+    const savedAt = str(o.savedAt);
+    const body = str(o.body);
+    return (
+      "---\n" +
+      "title: " +
+      title +
+      "\n" +
+      "kind: " +
+      kind +
+      "\n" +
+      "cwd: " +
+      cwd +
+      "\n" +
+      "savedAt: " +
+      savedAt +
+      "\n" +
+      "---\n\n" +
+      body
+    );
+  }
+
+  /**
+   * Normalize pin storage (JSON string or array) into unique non-empty path
+   * strings, capped at 40. Garbage-safe.
+   */
+  function normalizePins(raw) {
+    let list = raw;
+    if (typeof raw === "string") {
+      try {
+        list = JSON.parse(raw);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(list)) return [];
+    const seen = Object.create(null);
+    const out = [];
+    for (let i = 0; i < list.length && out.length < 40; i++) {
+      const p = list[i];
+      if (p == null) continue;
+      const s = String(p).trim();
+      if (!s || seen[s]) continue;
+      seen[s] = true;
+      out.push(s);
+    }
+    return out;
+  }
+
+  /** True when `path` is present in the pin list (string-coerced). */
+  function isPinned(pins, path) {
+    if (path == null) return false;
+    const p = String(path).trim();
+    if (!p) return false;
+    const list = Array.isArray(pins) ? pins : [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] != null && String(list[i]).trim() === p) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Return a new pin array with `path` added (if absent) or removed (if
+   * present). Empty path is a no-op. Result is re-normalized (unique, max 40).
+   */
+  function togglePin(pins, path) {
+    if (path == null || String(path).trim() === "") {
+      return normalizePins(pins);
+    }
+    const p = String(path).trim();
+    const list = normalizePins(pins);
+    if (isPinned(list, p)) {
+      return list.filter((x) => String(x).trim() !== p);
+    }
+    if (list.length >= 40) return list.slice();
+    return list.concat([p]);
+  }
+
+  /**
+   * Like rankItems, but pinned projects (kind === "project" and path in
+   * pinPaths) receive a +1000 score boost so they sort first on ties / empty
+   * query. Returns a new array capped at `limit`.
+   */
+  function rankItemsWithPins(items, q, limit, pinPaths) {
+    limit = limit == null ? 40 : limit;
+    const list = Array.isArray(items) ? items : [];
+    const pins = Array.isArray(pinPaths) ? pinPaths : [];
+    const pinSet = Object.create(null);
+    for (let i = 0; i < pins.length; i++) {
+      if (pins[i] != null && String(pins[i]) !== "") pinSet[String(pins[i])] = true;
+    }
+    const scored = list
+      .filter((it) => it != null)
+      .map((it) => {
+        const base = fuzzy(q, it.name) || fuzzy(q, it.sub || "") * 0.3;
+        const pinned =
+          it.kind === "project" && it.path != null && pinSet[String(it.path)];
+        // Boost only contributes to ranking; membership still follows rankItems
+        // (empty query keeps all; non-empty requires a positive base match).
+        const s = base + (pinned ? 1000 : 0);
+        return { it, s, base };
+      })
+      .filter((x) => x.base > 0 || !q);
+    // Always sort so pin boost reorders; equal scores keep stable relative order.
+    scored.sort((a, b) => b.s - a.s);
+    return scored.slice(0, Math.max(0, limit)).map((x) => x.it);
+  }
+
+  /**
+   * Move the id at `fromIndex` to `toIndex` in a tab order array.
+   * Returns a new array; bad/out-of-range indices yield a shallow copy of order.
+   */
+  function reorderTabs(order, fromIndex, toIndex) {
+    if (!Array.isArray(order)) return [];
+    const out = order.slice();
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) return out;
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= out.length ||
+      toIndex >= out.length
+    ) {
+      return out;
+    }
+    if (fromIndex === toIndex) return out;
+    const item = out.splice(fromIndex, 1)[0];
+    out.splice(toIndex, 0, item);
+    return out;
+  }
+
+  /**
+   * CSS role class for a forge kind tab.
+   * claude → role-orchestrator, grok → role-executor, ollama → role-local,
+   * everything else → role-shell.
+   */
+  function roleTabClass(kind) {
+    const k = String(kind == null ? "" : kind).toLowerCase();
+    if (k === "claude") return "role-orchestrator";
+    if (k === "grok") return "role-executor";
+    if (k === "ollama") return "role-local";
+    return "role-shell";
+  }
+
   return {
     fuzzy,
     rankItems,
+    rankItemsWithPins,
     visibleIds,
     layoutClass,
     buildShellArgs,
@@ -231,6 +424,14 @@
     nextActiveAfterClose,
     fmtUptime,
     parseGitStatus,
+    sanitizeFilename,
+    journalFilename,
+    journalMarkdown,
+    normalizePins,
+    togglePin,
+    isPinned,
+    reorderTabs,
+    roleTabClass,
     BUSY_MIN_MS,
     IDLE_MS,
   };

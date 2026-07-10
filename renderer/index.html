@@ -57,13 +57,15 @@
           <div class="slot-count" id="forge-count">0</div>
           <div class="slot-deck-hint">DECK</div>
         </div>
-        <div class="rune" id="rune-forge" title="New Forge">&#5809;</div>
-        <div class="rune" id="rune-claude" title="Summon Claude">&#5792;</div>
-        <div class="rune" id="rune-grok" title="Summon Grok Build">&#5833;</div>
-        <div class="rune" id="rune-ollama" title="Summon Ollama">&#5798;</div>
+        <div id="sidebar-pins" title="Pinned forges"></div>
+        <div class="rune" id="rune-forge" title="New Forge">&#9874;</div>
+        <div class="rune" id="rune-claude" title="Summon Claude">&#128770;</div>
+        <div class="rune" id="rune-grok" title="Summon Grok Build">&#9889;</div>
+        <div class="rune" id="rune-ollama" title="Summon Ollama">&#129433;</div>
         <div class="rune" id="rune-council" title="The Council — agent comms (Alt+C)">&#9776;</div>
-        <div class="rune" id="rune-clear" title="Clear (Ctrl+L)">&#5815;</div>
-        <div class="sidebar-flourish"><span class="flourish-rune">&#5817;</span></div>
+        <div class="rune" id="rune-journal" title="Save journal of active forge (Ctrl+Shift+J)">&#128220;</div>
+        <div class="rune" id="rune-clear" title="Clear (Ctrl+L)">&#10005;</div>
+        <div class="sidebar-flourish"><span class="flourish-rune">&#9760;</span></div>
         <div class="gauge">
           <div class="gauge-label">HELLFIRE<br />PRESSURE</div>
           <div class="gauge-tube"><div class="gauge-fill" id="gauge-fill"></div></div>
@@ -170,6 +172,14 @@
           <input id="set-sound" type="checkbox" />
         </label>
         <label class="set-row"
+          ><span>Always on top</span>
+          <input id="set-always-on-top" type="checkbox" />
+        </label>
+        <label class="set-row"
+          ><span>Minimize to tray</span>
+          <input id="set-minimize-tray" type="checkbox" />
+        </label>
+        <label class="set-row"
           ><span>Ollama model</span>
           <input
             id="set-ollama-model"
@@ -220,7 +230,8 @@
           Claude. Grok needs credits on your xAI team.
         </div>
         <div class="set-hint">
-          Ctrl+P palette · Ctrl+F search · Ctrl+± zoom · Alt+1/2/4 layout · Ctrl+D split
+          Ctrl+P palette · Ctrl+Shift+J journal · Ctrl+F search · Alt+1/2/4 layout · drag tabs to
+          reorder
         </div>
         <button id="set-close">CLOSE THE GRIMOIRE</button>
       </div>
@@ -243,6 +254,16 @@
             &#128770; Claude
           </button>
           <span class="council-agents-hint" id="api-agents-hint"></span>
+        </div>
+        <div class="council-search-row">
+          <input
+            id="council-search"
+            type="text"
+            spellcheck="false"
+            placeholder="Search the bus…"
+            autocomplete="off"
+          />
+          <button id="council-export" title="Export council bus to file">Export</button>
         </div>
         <div id="council-log"></div>
         <div class="council-compose">

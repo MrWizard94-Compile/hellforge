@@ -13,11 +13,20 @@ contextBridge.exposeInMainWorld("hellforge", {
   winMax: () => ipcRenderer.send("win:max"),
   winClose: () => ipcRenderer.send("win:close"),
   onWinState: (cb) => ipcRenderer.on("win:state", (e, maxed) => cb(maxed)),
+  winSetAlwaysOnTop: (v) => ipcRenderer.send("win:setAlwaysOnTop", v),
+  winGetAlwaysOnTop: () => ipcRenderer.invoke("win:getAlwaysOnTop"),
+  winSetMinimizeToTray: (v) => ipcRenderer.send("win:setMinimizeToTray", v),
+  winShow: () => ipcRenderer.send("win:show"),
+  winHide: () => ipcRenderer.send("win:hide"),
+  journal: {
+    save: (opts) => ipcRenderer.invoke("journal:save", opts),
+  },
   council: {
     workspace: () => ipcRenderer.invoke("council:workspace"),
     post: (msg) => ipcRenderer.invoke("council:post", msg),
     read: () => ipcRenderer.invoke("council:read"),
     onMsg: (cb) => ipcRenderer.on("council:msg", (e, msg) => cb(msg)),
+    export: (opts) => ipcRenderer.invoke("council:export", opts),
   },
   api: {
     status: (keyFile) => ipcRenderer.invoke("api:status", keyFile),

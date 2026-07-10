@@ -21,8 +21,11 @@ const settings = HFCore.mergeSettings(
   {
     shell: "pwsh.exe",
     fontSize: 14.5,
-    glass: 50,
+    /* lower glass = more of the HellForge.png plate shows through the panes */
+    glass: 42,
     sound: true,
+    alwaysOnTop: false,
+    minimizeToTray: false,
     ollamaModel: "qwen2.5-coder:14b",
     ollamaCmd:
       "docker start ollama-engine | Out-Null; docker exec -it ollama-engine ollama run {model}",
@@ -41,12 +44,278 @@ function applyGlass() {
   document.documentElement.style.setProperty("--glass-bot", (a * 0.12).toFixed(2));
 }
 
+// ---- pure helpers (HFCore / HFCouncil with tiny local fallbacks) ----
+function coreFn(name, fallback) {
+  return typeof HFCore !== "undefined" && typeof HFCore[name] === "function" ? HFCore[name] : fallback;
+}
+function councilFn(name, fallback) {
+  return typeof HFCouncil !== "undefined" && typeof HFCouncil[name] === "function"
+    ? HFCouncil[name]
+    : fallback;
+}
+
+function pinList() {
+  try {
+    return coreFn("normalizePins", (r) => (Array.isArray(r) ? r.filter(Boolean) : []))(
+      localStorage.getItem("hf-pins")
+    );
+  } catch {
+    return [];
+  }
+}
+function savePins(pins) {
+  const list = coreFn("normalizePins", (r) => (Array.isArray(r) ? r : []))(pins);
+  localStorage.setItem("hf-pins", JSON.stringify(list));
+  return list;
+}
+/** Refresh pin-dependent UI without touching late `let` bindings (TDZ-safe). */
+function refreshPinViews() {
+  renderSidebarPins();
+  const pal = $("palette");
+  if (pal && !pal.classList.contains("hidden")) renderPalette();
+  const deck = $("deck");
+  if (deck && !deck.classList.contains("hidden")) renderDeckTiles();
+}
+function toggleProjectPin(path) {
+  if (!path) return pinList();
+  const next = coreFn("togglePin", (p, path) => {
+    const i = p.indexOf(String(path));
+    if (i >= 0) {
+      const c = p.slice();
+      c.splice(i, 1);
+      return c;
+    }
+    return p.concat([String(path)]);
+  })(pinList(), path);
+  savePins(next);
+  refreshPinViews();
+  return next;
+}
+
+function applyWindowPrefs() {
+  if (!window.hellforge) return;
+  if (typeof window.hellforge.winSetAlwaysOnTop === "function") {
+    window.hellforge.winSetAlwaysOnTop(!!settings.alwaysOnTop);
+  }
+  if (typeof window.hellforge.winSetMinimizeToTray === "function") {
+    window.hellforge.winSetMinimizeToTray(!!settings.minimizeToTray);
+  }
+}
+
+/** Capture the full xterm buffer as plain lines (trailing blanks trimmed). */
+function captureTermLines(term) {
+  if (!term || !term.buffer || !term.buffer.active) return [];
+  const buf = term.buffer.active;
+  const lines = [];
+  for (let i = 0; i < buf.length; i++) {
+    const line = buf.getLine(i);
+    lines.push(line ? line.translateToString(true) : "");
+  }
+  while (lines.length && !String(lines[lines.length - 1]).trim()) lines.pop();
+  return lines;
+}
+
+function buildJournalPayload(f) {
+  const now = Date.now();
+  const body = captureTermLines(f.term).join("\n");
+  const md = coreFn("journalMarkdown", (o) => {
+    const s = (v) => (v == null ? "" : String(v));
+    return (
+      "---\ntitle: " +
+      s(o.title) +
+      "\nkind: " +
+      s(o.kind) +
+      "\ncwd: " +
+      s(o.cwd) +
+      "\nsavedAt: " +
+      s(o.savedAt) +
+      "\n---\n\n" +
+      s(o.body)
+    );
+  })({
+    title: f.title,
+    kind: f.kind || "shell",
+    cwd: f.cwd || "",
+    savedAt: new Date(now).toISOString(),
+    body,
+  });
+  const filename = coreFn("journalFilename", (label, ms) => {
+    const d = new Date(Number(ms) || Date.now());
+    const p = (n) => (n < 10 ? "0" : "") + n;
+    const stamp =
+      "" +
+      d.getFullYear() +
+      p(d.getMonth() + 1) +
+      p(d.getDate()) +
+      "-" +
+      p(d.getHours()) +
+      p(d.getMinutes()) +
+      p(d.getSeconds());
+    let safe = "";
+    const raw = String(label == null ? "forge" : label);
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      const c = raw.charCodeAt(i);
+      if (c < 32) continue;
+      if ('<>:"/\\|?*'.indexOf(ch) !== -1) continue;
+      safe += ch;
+    }
+    safe = safe.trim() || "forge";
+    return "journal-" + stamp + "-" + safe + ".md";
+  })(f.title, now);
+  return { filename, content: md };
+}
+
+async function saveJournalForge(f) {
+  if (!f || !f.term) return { ok: false, error: "no forge" };
+  const { filename, content } = buildJournalPayload(f);
+  if (!(window.hellforge && window.hellforge.journal && window.hellforge.journal.save)) {
+    return { ok: false, error: "journal bridge offline" };
+  }
+  try {
+    return (await window.hellforge.journal.save({ filename, content })) || {
+      ok: false,
+      error: "no response",
+    };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
+}
+
+async function saveJournalActive() {
+  const f = forges.get(activeId);
+  if (!f) {
+    flashStatus("Journal · no active forge");
+    return;
+  }
+  const res = await saveJournalForge(f);
+  if (res && res.ok) flashStatus("Journal saved · " + (res.path || f.title));
+  else flashStatus("Journal failed · " + ((res && res.error) || "unknown"));
+}
+
+async function saveJournalsAll() {
+  if (!order.length) {
+    flashStatus("Journal · no forges open");
+    return;
+  }
+  let ok = 0,
+    fail = 0,
+    lastPath = "";
+  for (const id of order) {
+    const f = forges.get(id);
+    if (!f) continue;
+    const res = await saveJournalForge(f);
+    if (res && res.ok) {
+      ok++;
+      lastPath = res.path || lastPath;
+    } else fail++;
+  }
+  if (fail && !ok) flashStatus("Journals failed · " + fail + " error" + (fail === 1 ? "" : "s"));
+  else if (fail)
+    flashStatus("Journals · " + ok + " saved, " + fail + " failed" + (lastPath ? " · " + lastPath : ""));
+  else flashStatus("Journals saved · " + ok + " forge" + (ok === 1 ? "" : "s") + (lastPath ? " · " + lastPath : ""));
+}
+
+function renderSidebarPins() {
+  const el = $("sidebar-pins");
+  if (!el) return;
+  const pins = pinList();
+  const projects = window.HF_PROJECTS || [];
+  el.innerHTML = "";
+  for (const path of pins) {
+    const p = projects.find((x) => x.path === path);
+    const name = p ? p.name : String(path).split(/[/\\]/).filter(Boolean).pop() || path;
+    const row = document.createElement("div");
+    row.className = "pin-rune";
+    row.dataset.path = path;
+    row.title = path;
+    const star = document.createElement("span");
+    star.className = "pin-rune-star";
+    star.textContent = "★";
+    const label = document.createElement("span");
+    label.className = "pin-rune-name";
+    label.textContent = name;
+    const x = document.createElement("span");
+    x.className = "pin-rune-x";
+    x.title = "Unpin";
+    x.textContent = "×";
+    row.append(star, label, x);
+    row.addEventListener("click", (e) => {
+      if (e.target.classList.contains("pin-rune-x")) {
+        e.stopPropagation();
+        toggleProjectPin(path);
+        return;
+      }
+      summon("shell", { cwd: path, label: name });
+    });
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      toggleProjectPin(path);
+    });
+    el.appendChild(row);
+  }
+}
+
+/** Re-append tab nodes in `order` sequence after a drag reorder. */
+function reappendTabsInOrder() {
+  for (const id of order) {
+    const f = forges.get(id);
+    if (f && f.tab) tabsEl.appendChild(f.tab);
+  }
+}
+
+function bindTabDrag(tab, id) {
+  tab.draggable = true;
+  tab.addEventListener("dragstart", (e) => {
+    if (tab.querySelector(".tab-rename") || tab.dataset.renaming === "1") {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData("text/plain", String(id));
+    e.dataTransfer.effectAllowed = "move";
+    tab.classList.add("dragging");
+    tab._dragId = id;
+  });
+  tab.addEventListener("dragend", () => {
+    tab.classList.remove("dragging");
+    for (const t of tabsEl.querySelectorAll(".tab.drag-over")) t.classList.remove("drag-over");
+  });
+  tab.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    tab.classList.add("drag-over");
+  });
+  tab.addEventListener("dragleave", () => {
+    tab.classList.remove("drag-over");
+  });
+  tab.addEventListener("drop", (e) => {
+    e.preventDefault();
+    tab.classList.remove("drag-over");
+    const fromId = Number(e.dataTransfer.getData("text/plain"));
+    const toId = id;
+    if (!Number.isFinite(fromId) || fromId === toId) return;
+    const fromIndex = order.indexOf(fromId);
+    const toIndex = order.indexOf(toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = coreFn("reorderTabs", (arr, fi, ti) => {
+      const o = arr.slice();
+      const [item] = o.splice(fi, 1);
+      o.splice(ti, 0, item);
+      return o;
+    })(order, fromIndex, toIndex);
+    order.length = 0;
+    for (const x of next) order.push(x);
+    reappendTabsInOrder();
+    renderLayout();
+  });
+}
+
 const THEME = {
   background: "rgba(0,0,0,0)",
-  foreground: "#f0e6d4",
-  cursor: "#ff7a26",
-  cursorAccent: "#0c0907",
-  selectionBackground: "rgba(255,122,38,0.28)",
+  foreground: "#ffb070",
+  cursor: "#ff6a1a",
+  cursorAccent: "#0a0604",
+  selectionBackground: "rgba(255,90,20,0.28)",
   black: "#1a1512",
   red: "#ff5030",
   green: "#a3c76d",
@@ -141,7 +410,14 @@ async function summon(kind, o = {}) {
   if (deferredRun) setTimeout(() => window.hellforge.write(id, deferredRun + "\r"), 700);
 
   const tab = document.createElement("div");
-  tab.className = "tab";
+  const roleClass = coreFn("roleTabClass", (k) => {
+    const kk = String(k == null ? "" : k).toLowerCase();
+    if (kk === "claude") return "role-orchestrator";
+    if (kk === "grok") return "role-executor";
+    if (kk === "ollama") return "role-local";
+    return "role-shell";
+  })(kind);
+  tab.className = "tab " + roleClass;
   tab.innerHTML = `<span class="flame">${agent ? agent.icon : "⚒"}</span><span class="t">${title}</span><span class="x" title="Extinguish">×</span>`;
   tab.addEventListener("click", (e) => {
     if (e.target.classList.contains("x")) extinguish(id);
@@ -153,6 +429,7 @@ async function summon(kind, o = {}) {
   tab.addEventListener("dblclick", (e) => {
     if (!e.target.classList.contains("x")) renameTab(id);
   });
+  bindTabDrag(tab, id);
   tabsEl.appendChild(tab);
 
   holder.addEventListener("mousedown", () => focusPane(id));
@@ -227,12 +504,14 @@ function focusPane(id) {
 }
 const activate = focusPane; // back-compat alias
 
-// double-click a tab to rename its forge
+// double-click a tab to rename its forge (disables drag while editing)
 function renameTab(id) {
   const f = forges.get(id);
   if (!f) return;
   const span = f.tab.querySelector(".t");
   if (!span) return;
+  f.tab.draggable = false;
+  f.tab.dataset.renaming = "1";
   const input = document.createElement("input");
   input.className = "tab-rename";
   input.value = f.title;
@@ -246,6 +525,8 @@ function renameTab(id) {
     s.className = "t";
     s.textContent = v;
     input.replaceWith(s);
+    f.tab.draggable = true;
+    delete f.tab.dataset.renaming;
     if (activeId === id) updateStatus();
   };
   input.addEventListener("keydown", (ev) => {
@@ -379,29 +660,50 @@ function renderDeckForges() {
 function renderDeckTiles() {
   const el = $("deck-tiles");
   if (!el) return;
-  const projects = (window.HF_PROJECTS || []).slice(0, 10);
+  const pins = pinList();
+  const pinSet = new Set(pins);
+  // Pins first, then remaining projects (cap 10 total project tiles)
+  const all = window.HF_PROJECTS || [];
+  const pinned = [];
+  const rest = [];
+  for (const p of all) {
+    if (p && p.path && pinSet.has(p.path)) pinned.push(p);
+    else if (p) rest.push(p);
+  }
+  const projects = pinned.concat(rest).slice(0, 10);
   const tiles = [
     `<div class="tile summon" data-act="forge"><div class="tile-name">⚒ New Forge</div><div class="tile-div">powershell</div></div>`,
     `<div class="tile summon" data-act="claude"><div class="tile-name">\u{1F702} Summon Claude</div><div class="tile-div">claude code</div></div>`,
     `<div class="tile summon" data-act="grok"><div class="tile-name">⚡ Summon Grok</div><div class="tile-div">grok build</div></div>`,
     `<div class="tile summon" data-act="ollama"><div class="tile-name">\u{1F999} Summon Ollama</div><div class="tile-div">${settings.ollamaModel}</div></div>`,
   ].concat(
-    projects.map(
-      (p, i) =>
-        `<div class="tile" data-proj="${i}"><div class="tile-name">${p.name}</div><div class="tile-div">${p.div}</div></div>`
-    )
+    projects.map((p, i) => {
+      const on = pinSet.has(p.path);
+      return `<div class="tile${on ? " pinned" : ""}" data-proj="${i}" data-path="${escapeHtml(p.path)}">
+        <span class="pin-star${on ? " on" : ""}" data-pin="${i}" title="${on ? "Unpin" : "Pin"}">${on ? "★" : "☆"}</span>
+        <div class="tile-name">${escapeHtml(p.name)}</div>
+        <div class="tile-div">${escapeHtml(p.div || "")}</div>
+      </div>`;
+    })
   );
   el.className = "deck-tiles";
   el.innerHTML = tiles.join("");
   el.querySelectorAll(".tile").forEach((t) => {
-    t.addEventListener("click", () => {
+    t.addEventListener("click", (e) => {
+      const star = e.target.closest(".pin-star");
+      if (star && t.dataset.proj != null) {
+        e.stopPropagation();
+        const p = projects[+t.dataset.proj];
+        if (p && p.path) toggleProjectPin(p.path);
+        return;
+      }
       if (t.dataset.act === "forge") summon("shell");
       else if (t.dataset.act === "claude") summon("claude");
       else if (t.dataset.act === "grok") summon("grok");
       else if (t.dataset.act === "ollama") summon("ollama");
       else if (t.dataset.proj != null) {
         const p = projects[+t.dataset.proj];
-        summon("shell", { cwd: p.path, label: p.name });
+        if (p) summon("shell", { cwd: p.path, label: p.name });
       }
       closeDeck();
     });
@@ -496,6 +798,7 @@ setInterval(() => {
 let councilOpen = false;
 const councilEl = $("council");
 const KNOWN_ROLES = ["director", "orchestrator", "executor", "local", "shell"];
+let councilQuery = "";
 
 // API-backed agents: which are switched on, which providers have keys, and the
 // recent bus history we feed them as context. executor=Grok/xai, orchestrator=Claude/anthropic.
@@ -568,14 +871,9 @@ function renderCouncilTargets() {
   if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
 }
 
-// Render one message row (textContent throughout — bus content is untrusted).
-function appendCouncilMsg(msg) {
-  const log = $("council-log");
+// Paint one message row (textContent throughout — bus content is untrusted).
+function paintCouncilMsg(msg, log) {
   if (!log || !msg) return;
-  councilHistory.push({ from: msg.from, to: msg.to, text: msg.text, ts: msg.ts });
-  if (councilHistory.length > 200) councilHistory.shift();
-  const empty = log.querySelector(".council-empty");
-  if (empty) empty.remove();
   const role = normRole(msg.from);
   const meta = HFCouncil.roleMeta(role);
   const row = document.createElement("div");
@@ -601,7 +899,97 @@ function appendCouncilMsg(msg) {
   text.textContent = String(msg.text == null ? "" : msg.text);
   row.append(metaEl, text);
   log.appendChild(row);
+}
+
+// Re-render the council log using the current search filter.
+function renderCouncilLog() {
+  const log = $("council-log");
+  if (!log) return;
+  const filter = councilFn("filterBus", (msgs, q) => {
+    if (!Array.isArray(msgs)) return [];
+    const qq = String(q == null ? "" : q).toLowerCase();
+    if (!qq) return msgs.slice();
+    return msgs.filter((m) => {
+      if (!m || typeof m !== "object") return false;
+      return [m.from, m.to, m.text].some((v) =>
+        String(v == null ? "" : v)
+          .toLowerCase()
+          .includes(qq)
+      );
+    });
+  });
+  const visible = filter(councilHistory, councilQuery);
+  log.innerHTML = "";
+  if (!visible.length) {
+    const empty = document.createElement("div");
+    empty.className = "council-empty";
+    if (councilHistory.length && councilQuery) {
+      empty.textContent = "No messages match the search.";
+    } else {
+      empty.innerHTML =
+        "The council chamber is silent.<br>Dispatch an order &mdash; or an agent posts back with hf-say.";
+    }
+    log.appendChild(empty);
+    return;
+  }
+  for (const m of visible) paintCouncilMsg(m, log);
   log.scrollTop = log.scrollHeight;
+}
+
+// Push into history and refresh the filtered view.
+function appendCouncilMsg(msg) {
+  if (!msg) return;
+  councilHistory.push({ from: msg.from, to: msg.to, text: msg.text, ts: msg.ts });
+  if (councilHistory.length > 200) councilHistory.shift();
+  if (councilOpen) renderCouncilLog();
+}
+
+async function exportCouncilBus() {
+  let msgs = councilHistory.slice();
+  if (window.hellforge && window.hellforge.council && window.hellforge.council.read) {
+    try {
+      const full = await window.hellforge.council.read();
+      if (Array.isArray(full) && full.length) msgs = full;
+    } catch {
+      /* use in-memory history */
+    }
+  }
+  const content = councilFn("formatBusExport", (list) => {
+    const lines = ["# Council Bus Export", ""];
+    for (const m of Array.isArray(list) ? list : []) {
+      if (!m || typeof m !== "object") continue;
+      lines.push("## " + (m.ts ? new Date(Number(m.ts)).toISOString() : ""));
+      lines.push("- **from:** " + (m.from == null ? "?" : String(m.from)));
+      lines.push("- **to:** " + (m.to == null ? "all" : String(m.to)));
+      lines.push("");
+      lines.push(m.text == null ? "" : String(m.text));
+      lines.push("");
+    }
+    return lines.join("\n");
+  })(msgs);
+  const d = new Date();
+  const p = (n) => (n < 10 ? "0" : "") + n;
+  const filename =
+    "council-export-" +
+    d.getFullYear() +
+    p(d.getMonth() + 1) +
+    p(d.getDate()) +
+    "-" +
+    p(d.getHours()) +
+    p(d.getMinutes()) +
+    p(d.getSeconds()) +
+    ".md";
+  if (!(window.hellforge && window.hellforge.council && window.hellforge.council.export)) {
+    flashStatus("Export failed · bridge offline");
+    return;
+  }
+  try {
+    const res = await window.hellforge.council.export({ filename, content });
+    if (res && res.ok) flashStatus("Bus exported · " + (res.path || filename));
+    else flashStatus("Export failed · " + ((res && res.error) || "unknown"));
+  } catch (err) {
+    flashStatus("Export failed · " + (err && err.message ? err.message : String(err)));
+  }
 }
 
 // Reflect key presence + on/off state on the API-agent chips.
@@ -713,6 +1101,8 @@ async function openCouncil() {
   renderCouncilTargets();
   renderApiChips();
   refreshApiStatus();
+  const search = $("council-search");
+  if (search) search.value = councilQuery;
   const log = $("council-log");
   if (window.hellforge && window.hellforge.council) {
     try {
@@ -724,17 +1114,18 @@ async function openCouncil() {
       }
       const history = await window.hellforge.council.read();
       councilHistory = [];
-      log.innerHTML = "";
       if (Array.isArray(history) && history.length) {
-        for (const m of history) appendCouncilMsg(m);
-      } else {
-        log.innerHTML =
-          '<div class="council-empty">The council chamber is silent.<br>Dispatch an order &mdash; or an agent posts back with hf-say.</div>';
+        for (const m of history) {
+          councilHistory.push({ from: m.from, to: m.to, text: m.text, ts: m.ts });
+          if (councilHistory.length > 200) councilHistory.shift();
+        }
       }
+      renderCouncilLog();
     } catch {
       /* best-effort; ignore */
+      renderCouncilLog();
     }
-  } else if (log && !log.children.length) {
+  } else if (log) {
     log.innerHTML = '<div class="council-empty">Council bus offline (no bridge).</div>';
   }
   const input = $("council-input");
@@ -774,6 +1165,25 @@ $("council-input").addEventListener("keydown", (e) => {
     closeCouncil();
   }
 });
+const councilSearchEl = $("council-search");
+if (councilSearchEl) {
+  councilSearchEl.addEventListener("input", () => {
+    councilQuery = councilSearchEl.value;
+    if (councilOpen) renderCouncilLog();
+  });
+  councilSearchEl.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (councilSearchEl.value) {
+        councilSearchEl.value = "";
+        councilQuery = "";
+        renderCouncilLog();
+      } else closeCouncil();
+    }
+  });
+}
+const councilExportBtn = $("council-export");
+if (councilExportBtn) councilExportBtn.addEventListener("click", () => exportCouncilBus());
 
 // live bus feed: new messages (our own posts + external hf-say) stream in
 if (window.hellforge && window.hellforge.council) {
@@ -1011,6 +1421,10 @@ function openSettings() {
   $("set-glass").value = settings.glass;
   $("set-glass-val").textContent = settings.glass + "%";
   $("set-sound").checked = settings.sound;
+  const aot = $("set-always-on-top");
+  if (aot) aot.checked = !!settings.alwaysOnTop;
+  const mtt = $("set-minimize-tray");
+  if (mtt) mtt.checked = !!settings.minimizeToTray;
   $("set-ollama-model").value = settings.ollamaModel;
   $("set-ollama-cmd").value = settings.ollamaCmd;
   $("set-api-keyfile").value = settings.apiKeyFile;
@@ -1020,6 +1434,14 @@ function openSettings() {
 }
 function closeSettings() {
   settingsEl.classList.add("hidden");
+}
+function toggleAlwaysOnTop() {
+  settings.alwaysOnTop = !settings.alwaysOnTop;
+  saveSettings();
+  applyWindowPrefs();
+  const aot = $("set-always-on-top");
+  if (aot) aot.checked = !!settings.alwaysOnTop;
+  flashStatus(settings.alwaysOnTop ? "Always on top · ON" : "Always on top · OFF");
 }
 $("settings-btn").onclick = openSettings;
 $("set-close").onclick = closeSettings;
@@ -1042,6 +1464,22 @@ $("set-sound").onchange = (e) => {
   saveSettings();
   $("sound-btn").classList.toggle("active", soundOn);
 };
+const setAlwaysOnTopEl = $("set-always-on-top");
+if (setAlwaysOnTopEl) {
+  setAlwaysOnTopEl.onchange = (e) => {
+    settings.alwaysOnTop = !!e.target.checked;
+    saveSettings();
+    applyWindowPrefs();
+  };
+}
+const setMinimizeTrayEl = $("set-minimize-tray");
+if (setMinimizeTrayEl) {
+  setMinimizeTrayEl.onchange = (e) => {
+    settings.minimizeToTray = !!e.target.checked;
+    saveSettings();
+    applyWindowPrefs();
+  };
+}
 $("set-ollama-model").onchange = (e) => {
   settings.ollamaModel = e.target.value.trim() || "llama3.2";
   saveSettings();
@@ -1069,6 +1507,8 @@ $("set-anthropic-model").onchange = (e) => {
 applyGlass();
 soundOn = settings.sound;
 $("sound-btn").classList.toggle("active", soundOn);
+applyWindowPrefs();
+renderSidebarPins();
 
 // ---- chrome ----
 $("btn-min").onclick = () => window.hellforge.winMin();
@@ -1082,6 +1522,8 @@ $("rune-forge").onclick = () => summon("shell");
 $("rune-claude").onclick = () => summon("claude");
 $("rune-grok").onclick = () => summon("grok");
 $("rune-ollama").onclick = () => summon("ollama");
+const runeJournal = $("rune-journal");
+if (runeJournal) runeJournal.onclick = () => saveJournalActive();
 $("rune-clear").onclick = () => {
   const f = forges.get(activeId);
   if (f) f.term.clear();
@@ -1141,6 +1583,10 @@ window.addEventListener("keydown", (e) => {
   if (e.ctrlKey && !e.shiftKey && (e.key === "f" || e.key === "F")) {
     e.preventDefault();
     openSearch();
+  }
+  if (e.ctrlKey && e.shiftKey && (e.key === "j" || e.key === "J")) {
+    e.preventDefault();
+    saveJournalActive();
   }
   if (e.ctrlKey && (e.key === "=" || e.key === "+")) {
     e.preventDefault();
@@ -1207,6 +1653,26 @@ const ACTIONS = [
   { name: "Summon Grok (Build TUI)", icon: "⚡", run: () => summon("grok") },
   { name: "Summon Ollama", icon: "\u{1F999}", run: () => summon("ollama") },
   {
+    name: "Save journal (active forge)",
+    icon: "📜",
+    run: () => saveJournalActive(),
+  },
+  {
+    name: "Save journals (all forges)",
+    icon: "📚",
+    run: () => saveJournalsAll(),
+  },
+  {
+    name: "Export council bus",
+    icon: "☰",
+    run: () => exportCouncilBus(),
+  },
+  {
+    name: "Toggle always on top",
+    icon: "📌",
+    run: () => toggleAlwaysOnTop(),
+  },
+  {
     name: "Clear active forge",
     icon: "ᛞ",
     run: () => {
@@ -1233,6 +1699,7 @@ function allItems() {
       icon: "⚒",
       name: p.name,
       sub: `open forge · ${p.div}`,
+      path: p.path,
       run: () => summon("shell", { cwd: p.path, label: p.name }),
     });
   for (const s of SPELLS)
@@ -1255,17 +1722,30 @@ let pItems = [],
 
 function renderPalette() {
   const q = pInput.value.trim();
-  pItems = HFCore.rankItems(allItems(), q, 40);
+  const pins = pinList();
+  const rank =
+    typeof HFCore.rankItemsWithPins === "function"
+      ? (items, qq, lim) => HFCore.rankItemsWithPins(items, qq, lim, pins)
+      : (items, qq, lim) => HFCore.rankItems(items, qq, lim);
+  pItems = rank(allItems(), q, 40);
   if (pSel >= pItems.length) pSel = 0;
   pList.innerHTML = pItems
-    .map(
-      (it, i) =>
-        `<div class="pal-item${i === pSel ? " sel" : ""}" data-i="${i}">
+    .map((it, i) => {
+      const pinned =
+        it.kind === "project" &&
+        it.path &&
+        coreFn("isPinned", (ps, path) => ps.indexOf(path) !== -1)(pins, it.path);
+      const star =
+        it.kind === "project" && it.path
+          ? `<span class="pin-star${pinned ? " on" : ""}" data-pin-path="${escapeHtml(it.path)}" title="${pinned ? "Unpin" : "Pin project"}">${pinned ? "★" : "☆"}</span>`
+          : "";
+      return `<div class="pal-item${i === pSel ? " sel" : ""}" data-i="${i}">
        <span class="pal-icon pal-${it.kind}">${it.icon}</span>
-       <span class="pal-name">${it.name}</span>
-       <span class="pal-sub">${it.sub}</span>
-     </div>`
-    )
+       <span class="pal-name">${escapeHtml(it.name)}</span>
+       <span class="pal-sub">${escapeHtml(it.sub)}</span>
+       ${star}
+     </div>`;
+    })
     .join("");
   const sel = pList.querySelector(".sel");
   if (sel) sel.scrollIntoView({ block: "nearest" });
@@ -1316,6 +1796,13 @@ pInput.addEventListener("keydown", (e) => {
   }
 });
 pList.addEventListener("click", (e) => {
+  const star = e.target.closest(".pin-star");
+  if (star) {
+    e.stopPropagation();
+    const path = star.getAttribute("data-pin-path");
+    if (path) toggleProjectPin(path);
+    return;
+  }
   const el = e.target.closest(".pal-item");
   if (el) {
     pSel = +el.dataset.i;
@@ -1412,6 +1899,7 @@ const HELP = [
   ["Ctrl+P", "Command palette"],
   ["Ctrl+`", "Command Deck"],
   ["Alt+C", "The Council (agent comms)"],
+  ["Ctrl+Shift+J", "Save journal (active forge)"],
   ["F1", "This help"],
   ["Ctrl+T", "New forge"],
   ["🜂 / ⚡ / 🦙", "Summon Claude / Grok / Ollama"],
@@ -1421,8 +1909,11 @@ const HELP = [
   ["Ctrl+F", "Search in terminal"],
   ["Ctrl+= / − / 0", "Font zoom / reset"],
   ["Double-click tab", "Rename forge"],
+  ["Drag tabs", "Reorder forges"],
+  ["★ in palette / deck", "Pin a project (sidebar runes)"],
   ["Drag pane edge", "Resize a split"],
   ["Broadcast toggle", "Type into every visible pane"],
+  ["Settings", "Always on top · Minimize to tray"],
 ];
 function toggleHelp() {
   const h = $("help");

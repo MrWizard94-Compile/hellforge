@@ -143,6 +143,63 @@
     return out;
   }
 
+  /**
+   * Case-insensitive filter of bus messages by text / from / to containing
+   * `query`. Empty query returns all valid message objects. Garbage-safe.
+   */
+  function filterBus(messages, query) {
+    if (!Array.isArray(messages)) return [];
+    const q = query == null ? "" : String(query).toLowerCase();
+    const out = [];
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      if (m == null || typeof m !== "object" || Array.isArray(m)) continue;
+      if (!q) {
+        out.push(m);
+        continue;
+      }
+      const text = String(m.text == null ? "" : m.text).toLowerCase();
+      const from = String(m.from == null ? "" : m.from).toLowerCase();
+      const to = String(m.to == null ? "" : m.to).toLowerCase();
+      if (text.includes(q) || from.includes(q) || to.includes(q)) out.push(m);
+    }
+    return out;
+  }
+
+  /**
+   * Markdown transcript of bus messages.
+   * Header + one block per message (time / from / to / text). Null-safe.
+   */
+  function formatBusExport(messages) {
+    const list = Array.isArray(messages) ? messages : [];
+    const lines = ["# Council Bus Export", ""];
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (m == null || typeof m !== "object" || Array.isArray(m)) continue;
+      const ts = Number(m.ts);
+      let timeStr;
+      if (Number.isFinite(ts) && ts > 0) {
+        try {
+          timeStr = new Date(ts).toISOString();
+        } catch {
+          timeStr = String(m.ts == null ? "" : m.ts);
+        }
+      } else {
+        timeStr = m.ts == null ? "" : String(m.ts);
+      }
+      const from = m.from == null ? "?" : String(m.from);
+      const to = m.to == null ? "all" : String(m.to);
+      const text = m.text == null ? "" : String(m.text);
+      lines.push("## " + timeStr);
+      lines.push("- **from:** " + from);
+      lines.push("- **to:** " + to);
+      lines.push("");
+      lines.push(text);
+      lines.push("");
+    }
+    return lines.join("\n");
+  }
+
   return {
     roleFor,
     roleMeta,
@@ -152,5 +209,7 @@
     resolveTargets,
     formatForPty,
     mentions,
+    filterBus,
+    formatBusExport,
   };
 });

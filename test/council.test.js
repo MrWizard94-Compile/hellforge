@@ -20,6 +20,8 @@ const {
   resolveTargets,
   formatForPty,
   mentions,
+  filterBus,
+  formatBusExport,
 } = require("../renderer/council.js");
 
 // ---- roleFor: forge kind -> collaboration role ----
@@ -162,6 +164,59 @@ test("mentions is garbage-safe", () => {
   assert.deepEqual(mentions(""), []);
 });
 
+// ---- filterBus: case-insensitive filter by text/from/to ----
+const BUS_MSGS = [
+  makeMessage("director", "executor", "Build the forge", 1000),
+  makeMessage("executor", "all", "Done building", 2000),
+  makeMessage("orchestrator", "local", "Review please", 3000),
+];
+test("filterBus: empty query returns all valid messages", () => {
+  assert.equal(filterBus(BUS_MSGS, "").length, 3);
+  assert.equal(filterBus(BUS_MSGS, null).length, 3);
+  assert.equal(filterBus(BUS_MSGS, undefined).length, 3);
+});
+test("filterBus matches text, from, and to case-insensitively", () => {
+  assert.equal(filterBus(BUS_MSGS, "build").length, 2);
+  assert.equal(filterBus(BUS_MSGS, "DIRECTOR").length, 1);
+  assert.equal(filterBus(BUS_MSGS, "Local").length, 1);
+  assert.equal(filterBus(BUS_MSGS, "review").length, 1);
+  assert.equal(filterBus(BUS_MSGS, "nope").length, 0);
+});
+test("filterBus is garbage-safe and skips invalid entries", () => {
+  assert.deepEqual(filterBus(null, "x"), []);
+  assert.deepEqual(filterBus(undefined, ""), []);
+  assert.deepEqual(filterBus("x", "x"), []);
+  assert.deepEqual(filterBus(42, "x"), []);
+  const mixed = [null, undefined, "x", 1, [], BUS_MSGS[0], { text: "hi", from: "a", to: "b" }];
+  assert.equal(filterBus(mixed, "").length, 2);
+  assert.equal(filterBus(mixed, "hi").length, 1);
+  assert.equal(filterBus([{ text: null, from: null, to: null }], "z").length, 0);
+  assert.equal(filterBus([{ text: null, from: null, to: null }], "").length, 1);
+});
+
+// ---- formatBusExport: markdown transcript ----
+test("formatBusExport starts with header and includes message fields", () => {
+  const md = formatBusExport(BUS_MSGS);
+  assert.ok(md.startsWith("# Council Bus Export"));
+  assert.ok(md.includes("**from:** director"));
+  assert.ok(md.includes("**to:** executor"));
+  assert.ok(md.includes("Build the forge"));
+  assert.ok(md.includes("Done building"));
+  assert.ok(md.includes("Review please"));
+});
+test("formatBusExport is null-safe and skips garbage entries", () => {
+  assert.equal(formatBusExport(null).startsWith("# Council Bus Export"), true);
+  assert.equal(formatBusExport(undefined).startsWith("# Council Bus Export"), true);
+  assert.equal(formatBusExport("x").startsWith("# Council Bus Export"), true);
+  const md = formatBusExport([null, "x", makeMessage("a", "b", "hi", 0)]);
+  assert.ok(md.includes("**from:** a"));
+  assert.ok(md.includes("hi"));
+  // missing fields
+  const sparse = formatBusExport([{ ts: null, from: null, to: null, text: null }]);
+  assert.ok(sparse.includes("**from:** ?"));
+  assert.ok(sparse.includes("**to:** all"));
+});
+
 // ---- adversarial fuzz: nothing throws on garbage ----
 const BADS = [undefined, null, NaN, 0, -1, "", "x", {}, [], true, () => {}, Infinity];
 function survives(fn) {
@@ -176,6 +231,8 @@ test("fuzz: every exported fn tolerates garbage without throwing", () => {
   survives((a, b) => resolveTargets(a, b));
   survives((a) => formatForPty(a));
   survives((a) => mentions(a));
+  survives((a, b) => filterBus(a, b));
+  survives((a) => formatBusExport(a));
 });
 
 // ---- UMD: attaches to global when module is absent (browser <script>) ----
@@ -186,4 +243,6 @@ test("council.js attaches HFCouncil to global when module is absent (browser)", 
   vm.runInNewContext(src, sandbox);
   assert.equal(typeof sandbox.globalThis.HFCouncil, "object");
   assert.equal(sandbox.globalThis.HFCouncil.roleFor("grok"), "executor");
+  assert.equal(typeof sandbox.globalThis.HFCouncil.filterBus, "function");
+  assert.equal(typeof sandbox.globalThis.HFCouncil.formatBusExport, "function");
 });

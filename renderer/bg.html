@@ -169,21 +169,14 @@
       <rect width="2560" height="1440" fill="#000" filter="url(#stone)" opacity="0.9" />
       <rect width="2560" height="1440" filter="url(#craze)" opacity="0.5" />
 
-      <!-- faint carved runes on the wall -->
-      <g
-        font-family="Georgia, serif"
-        font-weight="700"
-        fill="#000"
-        opacity="0.5"
-        style="paint-order: stroke"
-      >
-        <g fill="#1a0d06" stroke="#050302" stroke-width="1">
-          <text x="300" y="240" font-size="52" letter-spacing="10">&#5792; &#5809; &#5815;</text>
-          <text x="1750" y="300" font-size="52" letter-spacing="10">&#5794; &#5800; &#5825;</text>
-          <text x="900" y="1000" font-size="46" letter-spacing="8" opacity="0.7">
-            &#5809; &#5792; &#5798;
-          </text>
-        </g>
+      <!-- faint carved marks on the wall (paths only — never PUA text glyphs,
+           which rasterize as garbage Latin like "PRAY"/"RPT" when fonts lack them) -->
+      <g fill="none" stroke="#1a0d06" stroke-width="2.2" opacity="0.45">
+        <path d="M280,210 L310,240 L340,215 L370,250" />
+        <path d="M1780,270 L1820,300 L1860,275 L1900,310" />
+        <path d="M920,980 L960,1010 L1000,990 L1040,1020" opacity="0.7" />
+        <circle cx="400" cy="260" r="18" />
+        <circle cx="1880" cy="320" r="14" />
       </g>
 
       <!-- lava veins (generated) -->

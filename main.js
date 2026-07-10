@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
@@ -9,12 +9,17 @@ const HFCouncil = require("./renderer/council.js");
 const HFApi = require("./renderer/api.js");
 
 let win;
+let tray = null;
 let stateFile;
+let isQuitting = false;
+let minimizeToTray = false;
 
 // ---- The Council: shared JSONL message bus ----
 const COUNCIL_WORKSPACE = "C:\\WPAI\\Workspace";
 const COUNCIL_DIR = path.join(COUNCIL_WORKSPACE, ".hellforge");
 const COUNCIL_BUS = path.join(COUNCIL_DIR, "bus.jsonl");
+const JOURNALS_DIR = path.join(COUNCIL_DIR, "journals");
+const EXPORTS_DIR = path.join(COUNCIL_DIR, "exports");
 let busOffset = 0;
 let busWatcher = null;
 let busWatchTimer = null;
@@ -25,6 +30,29 @@ function ensureCouncilDirs() {
     return { dir: COUNCIL_WORKSPACE, bus: COUNCIL_BUS };
   } catch {
     return { dir: "", bus: "" };
+  }
+}
+
+function sanitizeFilename(name, fallback) {
+  try {
+    let base = path.basename(String(name == null || name === "" ? fallback : name));
+    base = base.replace(/\.\./g, "").replace(/[\\/]/g, "");
+    if (!base || base === "." || base === "..") base = fallback || "file";
+    return base;
+  } catch {
+    return fallback || "file";
+  }
+}
+
+function writeUtf8File(dir, filename, content, defaultName) {
+  try {
+    const safe = sanitizeFilename(filename, defaultName);
+    fs.mkdirSync(dir, { recursive: true });
+    const dest = path.join(dir, safe);
+    fs.writeFileSync(dest, content == null ? "" : String(content), "utf8");
+    return { ok: true, path: dest };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
   }
 }
 
@@ -160,6 +188,24 @@ ipcMain.handle("council:read", () => {
     return HFCouncil.parseBus(content);
   } catch {
     return [];
+  }
+});
+
+ipcMain.handle("council:export", (e, opts) => {
+  try {
+    const o = opts && typeof opts === "object" ? opts : {};
+    return writeUtf8File(EXPORTS_DIR, o.filename, o.content, "export.md");
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle("journal:save", (e, opts) => {
+  try {
+    const o = opts && typeof opts === "object" ? opts : {};
+    return writeUtf8File(JOURNALS_DIR, o.filename, o.content, "journal.md");
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
   }
 });
 
@@ -313,6 +359,107 @@ ipcMain.handle("git:status", async (e, dirs) => {
   return out;
 });
 
+// ---- system tray ----
+function rebuildTrayMenu() {
+  if (!tray) return;
+  try {
+    let aot = false;
+    try {
+      aot = !!(win && !win.isDestroyed() && win.isAlwaysOnTop());
+    } catch {
+      aot = false;
+    }
+    const menu = Menu.buildFromTemplate([
+      {
+        label: "Show",
+        click: () => {
+          try {
+            if (win && !win.isDestroyed()) {
+              win.show();
+              win.focus();
+            }
+          } catch {
+            /* best-effort; ignore */
+          }
+        },
+      },
+      {
+        label: "Hide",
+        click: () => {
+          try {
+            if (win && !win.isDestroyed()) win.hide();
+          } catch {
+            /* best-effort; ignore */
+          }
+        },
+      },
+      {
+        label: "Always on Top",
+        type: "checkbox",
+        checked: aot,
+        click: (item) => {
+          try {
+            if (win && !win.isDestroyed()) win.setAlwaysOnTop(!!item.checked);
+          } catch {
+            /* best-effort; ignore */
+          }
+        },
+      },
+      { type: "separator" },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
+    tray.setContextMenu(menu);
+  } catch {
+    /* best-effort; ignore */
+  }
+}
+
+function createTray() {
+  try {
+    const candidates = [
+      path.join(__dirname, "renderer", "crest.png"),
+      path.join(__dirname, "HellForge.png"),
+    ];
+    let img = null;
+    for (let i = 0; i < candidates.length; i++) {
+      try {
+        const p = candidates[i];
+        if (!fs.existsSync(p)) continue;
+        const loaded = nativeImage.createFromPath(p);
+        if (loaded && !loaded.isEmpty()) {
+          img = loaded.resize({ width: 16, height: 16 });
+          break;
+        }
+      } catch {
+        /* try next candidate */
+      }
+    }
+    if (!img || img.isEmpty()) return;
+
+    tray = new Tray(img);
+    tray.setToolTip("HellForge");
+    tray.on("click", () => {
+      try {
+        if (win && !win.isDestroyed()) {
+          win.show();
+          win.focus();
+        }
+      } catch {
+        /* best-effort; ignore */
+      }
+    });
+    rebuildTrayMenu();
+  } catch {
+    /* skip tray silently */
+  }
+}
+
 function createWindow() {
   stateFile = path.join(app.getPath("userData"), "window-state.json");
   const s = loadState();
@@ -335,18 +482,82 @@ function createWindow() {
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
   win.on("maximize", () => win.webContents.send("win:state", true));
   win.on("unmaximize", () => win.webContents.send("win:state", false));
-  win.on("close", saveState);
-  win.on("close", stopBusWatch);
+  win.on("close", (e) => {
+    try {
+      saveState();
+    } catch {
+      /* best-effort; ignore */
+    }
+    if (!isQuitting && minimizeToTray) {
+      e.preventDefault();
+      try {
+        win.hide();
+      } catch {
+        /* best-effort; ignore */
+      }
+      return;
+    }
+    stopBusWatch();
+  });
   startBusWatch();
+  createTray();
 }
 
 app.whenReady().then(createWindow);
+app.on("before-quit", () => {
+  isQuitting = true;
+  try {
+    if (tray) {
+      tray.destroy();
+      tray = null;
+    }
+  } catch {
+    /* best-effort; ignore */
+  }
+});
 app.on("window-all-closed", () => app.quit());
 
 // ---- window chrome ----
 ipcMain.on("win:min", () => win.minimize());
 ipcMain.on("win:max", () => (win.isMaximized() ? win.unmaximize() : win.maximize()));
 ipcMain.on("win:close", () => win.close());
+ipcMain.on("win:show", () => {
+  try {
+    if (win && !win.isDestroyed()) {
+      win.show();
+      win.focus();
+    }
+  } catch {
+    /* best-effort; ignore */
+  }
+});
+ipcMain.on("win:hide", () => {
+  try {
+    if (win && !win.isDestroyed()) win.hide();
+  } catch {
+    /* best-effort; ignore */
+  }
+});
+ipcMain.on("win:setAlwaysOnTop", (e, flag) => {
+  try {
+    if (win && !win.isDestroyed()) {
+      win.setAlwaysOnTop(!!flag);
+      rebuildTrayMenu();
+    }
+  } catch {
+    /* best-effort; ignore */
+  }
+});
+ipcMain.handle("win:getAlwaysOnTop", () => {
+  try {
+    return !!(win && !win.isDestroyed() && win.isAlwaysOnTop());
+  } catch {
+    return false;
+  }
+});
+ipcMain.on("win:setMinimizeToTray", (e, v) => {
+  minimizeToTray = !!v;
+});
 
 // ---- PTY management ----
 ipcMain.handle("pty:create", (e, opts) => {
