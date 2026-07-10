@@ -314,7 +314,7 @@ body {
 }
 #summon button {
   height: 30px;
-  padding: 0 16px;
+  padding: 0 14px;
   font-family: "Cinzel", serif;
   font-size: 11.5px;
   font-weight: 700;
@@ -1470,6 +1470,44 @@ body {
 }
 .set-row input[type="range"] {
   accent-color: var(--ember);
+}
+.set-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  background: #1a120c;
+  color: #ecdfc8;
+  border: 1px solid #4a3524;
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-family: "Consolas", monospace;
+  font-size: 12px;
+}
+.set-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--ember);
+  box-shadow: 0 0 10px rgba(255, 122, 38, 0.25);
+}
+.set-row-wide {
+  flex-wrap: wrap;
+}
+.set-row-wide > span:first-child {
+  flex-basis: 120px;
+}
+.set-row-wide input[type="text"] {
+  flex: 1 1 100%;
+}
+.set-note {
+  margin: 12px 0 2px;
+  font-family: "Consolas", monospace;
+  font-size: 10.5px;
+  color: #8a755c;
+  line-height: 1.65;
+}
+.set-note code {
+  color: #ffcf8a;
+  background: rgba(255, 122, 38, 0.1);
+  padding: 0 4px;
+  border-radius: 3px;
 }
 .set-row input[type="checkbox"] {
   width: 18px;

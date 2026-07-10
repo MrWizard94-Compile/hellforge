@@ -44,6 +44,8 @@
       <div id="summon">
         <button id="new-forge" title="New PowerShell (Ctrl+T)">&#9874; Forge</button>
         <button id="summon-claude" title="Summon Claude Code">&#128770; Summon Claude</button>
+        <button id="summon-grok" title="Summon Grok Build">&#9889; Grok</button>
+        <button id="summon-ollama" title="Summon Ollama (local model)">&#129433; Ollama</button>
       </div>
     </div>
 
@@ -57,6 +59,8 @@
         </div>
         <div class="rune" id="rune-forge" title="New Forge">&#5809;</div>
         <div class="rune" id="rune-claude" title="Summon Claude">&#5792;</div>
+        <div class="rune" id="rune-grok" title="Summon Grok Build">&#5833;</div>
+        <div class="rune" id="rune-ollama" title="Summon Ollama">&#5798;</div>
         <div class="rune" id="rune-clear" title="Clear (Ctrl+L)">&#5815;</div>
         <div class="sidebar-flourish"><span class="flourish-rune">&#5817;</span></div>
         <div class="gauge">
@@ -164,6 +168,28 @@
           ><span>Sound effects</span>
           <input id="set-sound" type="checkbox" />
         </label>
+        <label class="set-row"
+          ><span>Ollama model</span>
+          <input
+            id="set-ollama-model"
+            type="text"
+            spellcheck="false"
+            placeholder="qwen2.5-coder:14b"
+          />
+        </label>
+        <label class="set-row set-row-wide"
+          ><span>Ollama launcher</span>
+          <input
+            id="set-ollama-cmd"
+            type="text"
+            spellcheck="false"
+            placeholder="docker exec -it ollama-engine ollama run {model}"
+          />
+        </label>
+        <div class="set-note">
+          &#129433; Ollama runs your local model. <code>{model}</code> is replaced by the model
+          above. Default targets the <code>ollama-engine</code> Docker container.
+        </div>
         <div class="set-hint">
           Ctrl+P palette · Ctrl+F search · Ctrl+± zoom · Alt+1/2/4 layout · Ctrl+D split
         </div>

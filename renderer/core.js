@@ -94,24 +94,31 @@
    * because the "run then stay interactive" incantation is shell-specific and
    * not worth guessing.
    *
+   * `opts.launch` is an interactive agent command (Claude, Grok, `ollama run
+   * …`) that should start *after* the themed prompt and keep the session
+   * alive; it takes precedence over `opts.run` (a one-shot command). `isClaude`
+   * is retained as sugar for `launch: "claude"`.
+   *
    * @returns {{args: string[], deferredRun: string|null}}
    */
   function buildShellArgs(shell, opts) {
     opts = opts || {};
     shell = String(shell || "");
     const { isClaude, run, promptCmd } = opts;
+    const launch = opts.launch || (isClaude ? "claude" : "");
     const isPwsh = /pwsh|powershell/i.test(shell);
     if (isPwsh) {
       let cmd = promptCmd || "";
-      if (isClaude) cmd += "; claude";
+      if (launch) cmd += "; " + launch;
       else if (run) cmd += "; " + run;
       return { args: ["-NoLogo", "-NoExit", "-Command", cmd], deferredRun: null };
     }
     if (/cmd\.exe/i.test(shell)) {
-      return { args: run ? ["/K", run] : [], deferredRun: null };
+      const one = launch || run;
+      return { args: one ? ["/K", one] : [], deferredRun: null };
     }
     // WSL / Git Bash / anything else: launch plain, type the command after.
-    return { args: [], deferredRun: run || null };
+    return { args: [], deferredRun: launch || run || null };
   }
 
   /** System CPU load (0–100) clamped for the pressure gauge. */

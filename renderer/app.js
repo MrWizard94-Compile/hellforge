@@ -18,7 +18,15 @@ let broadcast = false; // send input to all visible panes
 
 // ---- persisted settings ----
 const settings = HFCore.mergeSettings(
-  { shell: "pwsh.exe", fontSize: 14.5, glass: 50, sound: true },
+  {
+    shell: "pwsh.exe",
+    fontSize: 14.5,
+    glass: 50,
+    sound: true,
+    ollamaModel: "qwen2.5-coder:14b",
+    ollamaCmd:
+      "docker start ollama-engine | Out-Null; docker exec -it ollama-engine ollama run {model}",
+  },
   localStorage.getItem("hf-settings")
 );
 function saveSettings() {
@@ -54,10 +62,30 @@ const THEME = {
   brightWhite: "#f5eee0",
 };
 
+// Agent forges: interactive AI CLIs launched inside a pwsh forge, right after
+// the themed prompt. Each supplies a tab icon, a title prefix, and the launch
+// command. Grok is xAI's "Grok Build" TUI (bare `grok`). Ollama runs through
+// the user's configurable launcher (Docker container by default) with {model}
+// substituted, so it works whether Ollama is native, in Docker, or remote.
+const AGENTS = {
+  claude: { prefix: "Claude", icon: "\u{1F702}", launch: () => "claude" },
+  grok: { prefix: "Grok", icon: "⚡", launch: () => "grok" },
+  ollama: {
+    prefix: "Ollama",
+    icon: "\u{1F999}",
+    model: (o) => o.model || settings.ollamaModel || "llama3.2",
+    launch: (o) =>
+      (settings.ollamaCmd || "ollama run {model}").replace(
+        /\{model\}/g,
+        o.model || settings.ollamaModel || "llama3.2"
+      ),
+  },
+};
+
 async function summon(kind, o = {}) {
   forgeCount++;
-  const isClaude = kind === "claude";
-  const title = o.label || (isClaude ? `Claude ${forgeCount}` : `Forge ${forgeCount}`);
+  const agent = AGENTS[kind] || null;
+  const title = o.label || (agent ? `${agent.prefix} ${forgeCount}` : `Forge ${forgeCount}`);
 
   const holder = document.createElement("div");
   holder.className = "term-holder";
@@ -85,8 +113,9 @@ async function summon(kind, o = {}) {
     'function prompt { "`e[38;2;255;122;38m[HELLFORGE]`e[0m ' +
     '`e[38;2;170;130;90m$(Get-Location)`e[0m `e[38;2;232;69;28m>`e[0m " }; ' +
     "Write-Host '  the forge is lit. speak, and it shapes.' -ForegroundColor DarkYellow";
-  const shell = isClaude ? "pwsh.exe" : o.shell || settings.shell || "pwsh.exe";
-  const { args, deferredRun } = HFCore.buildShellArgs(shell, { isClaude, run: o.run, promptCmd });
+  const shell = agent ? "pwsh.exe" : o.shell || settings.shell || "pwsh.exe";
+  const launch = agent ? agent.launch(o) : null;
+  const { args, deferredRun } = HFCore.buildShellArgs(shell, { launch, run: o.run, promptCmd });
   const opts = {
     cols: term.cols,
     rows: term.rows,
@@ -101,7 +130,7 @@ async function summon(kind, o = {}) {
 
   const tab = document.createElement("div");
   tab.className = "tab";
-  tab.innerHTML = `<span class="flame">${isClaude ? "\u{1F702}" : "⚒"}</span><span class="t">${title}</span><span class="x" title="Extinguish">×</span>`;
+  tab.innerHTML = `<span class="flame">${agent ? agent.icon : "⚒"}</span><span class="t">${title}</span><span class="x" title="Extinguish">×</span>`;
   tab.addEventListener("click", (e) => {
     if (e.target.classList.contains("x")) extinguish(id);
     else activate(id);
@@ -122,7 +151,17 @@ async function summon(kind, o = {}) {
   });
   term.onResize(({ cols, rows }) => window.hellforge.resize(id, cols, rows));
 
-  forges.set(id, { term, fit, holder, tab, title, search, kind, cwd: o.cwd || "C:\\WPAI" });
+  forges.set(id, {
+    term,
+    fit,
+    holder,
+    tab,
+    title,
+    search,
+    kind,
+    model: agent && agent.model ? agent.model(o) : undefined,
+    cwd: o.cwd || "C:\\WPAI",
+  });
   order.push(id);
   activeId = id;
   renderLayout();
@@ -308,8 +347,9 @@ function renderDeckForges() {
     .map((id) => {
       const f = forges.get(id);
       if (!f) return "";
+      const ic = (AGENTS[f.kind] && AGENTS[f.kind].icon) || "⚒";
       return `<div class="roster-item" data-id="${id}">
-        <span class="roster-flame">⚒</span>
+        <span class="roster-flame">${ic}</span>
         <span class="roster-name">${f.title}</span>
         <span class="roster-live"></span>
       </div>`;
@@ -330,6 +370,8 @@ function renderDeckTiles() {
   const tiles = [
     `<div class="tile summon" data-act="forge"><div class="tile-name">⚒ New Forge</div><div class="tile-div">powershell</div></div>`,
     `<div class="tile summon" data-act="claude"><div class="tile-name">\u{1F702} Summon Claude</div><div class="tile-div">claude code</div></div>`,
+    `<div class="tile summon" data-act="grok"><div class="tile-name">⚡ Summon Grok</div><div class="tile-div">grok build</div></div>`,
+    `<div class="tile summon" data-act="ollama"><div class="tile-name">\u{1F999} Summon Ollama</div><div class="tile-div">${settings.ollamaModel}</div></div>`,
   ].concat(
     projects.map(
       (p, i) =>
@@ -342,6 +384,8 @@ function renderDeckTiles() {
     t.addEventListener("click", () => {
       if (t.dataset.act === "forge") summon("shell");
       else if (t.dataset.act === "claude") summon("claude");
+      else if (t.dataset.act === "grok") summon("grok");
+      else if (t.dataset.act === "ollama") summon("ollama");
       else if (t.dataset.proj != null) {
         const p = projects[+t.dataset.proj];
         summon("shell", { cwd: p.path, label: p.name });
@@ -656,6 +700,8 @@ function openSettings() {
   $("set-glass").value = settings.glass;
   $("set-glass-val").textContent = settings.glass + "%";
   $("set-sound").checked = settings.sound;
+  $("set-ollama-model").value = settings.ollamaModel;
+  $("set-ollama-cmd").value = settings.ollamaCmd;
   settingsEl.classList.remove("hidden");
 }
 function closeSettings() {
@@ -682,6 +728,15 @@ $("set-sound").onchange = (e) => {
   saveSettings();
   $("sound-btn").classList.toggle("active", soundOn);
 };
+$("set-ollama-model").onchange = (e) => {
+  settings.ollamaModel = e.target.value.trim() || "llama3.2";
+  saveSettings();
+  if (!$("deck").classList.contains("hidden")) renderDeckTiles();
+};
+$("set-ollama-cmd").onchange = (e) => {
+  settings.ollamaCmd = e.target.value.trim() || "ollama run {model}";
+  saveSettings();
+};
 
 // apply persisted settings on boot
 applyGlass();
@@ -694,8 +749,12 @@ $("btn-max").onclick = () => window.hellforge.winMax();
 $("btn-close").onclick = () => window.hellforge.winClose();
 $("new-forge").onclick = () => summon("shell");
 $("summon-claude").onclick = () => summon("claude");
+$("summon-grok").onclick = () => summon("grok");
+$("summon-ollama").onclick = () => summon("ollama");
 $("rune-forge").onclick = () => summon("shell");
 $("rune-claude").onclick = () => summon("claude");
+$("rune-grok").onclick = () => summon("grok");
+$("rune-ollama").onclick = () => summon("ollama");
 $("rune-clear").onclick = () => {
   const f = forges.get(activeId);
   if (f) f.term.clear();
@@ -811,6 +870,8 @@ const SPELLS = [
 const ACTIONS = [
   { name: "New forge (PowerShell)", icon: "⚒", run: () => summon("shell") },
   { name: "Summon Claude", icon: "\u{1F702}", run: () => summon("claude") },
+  { name: "Summon Grok (Build TUI)", icon: "⚡", run: () => summon("grok") },
+  { name: "Summon Ollama", icon: "\u{1F999}", run: () => summon("ollama") },
   {
     name: "Clear active forge",
     icon: "ᛞ",
@@ -1018,6 +1079,7 @@ const HELP = [
   ["Ctrl+`", "Command Deck"],
   ["F1", "This help"],
   ["Ctrl+T", "New forge"],
+  ["🜂 / ⚡ / 🦙", "Summon Claude / Grok / Ollama"],
   ["Ctrl+W", "Extinguish forge"],
   ["Ctrl+D", "Split panes"],
   ["Alt+1 / 2 / 4", "Layout: single / split / grid"],
@@ -1047,7 +1109,7 @@ function saveSession() {
   const forgesArr = order
     .map((id) => {
       const f = forges.get(id);
-      return f ? { kind: f.kind, cwd: f.cwd, label: f.title } : null;
+      return f ? { kind: f.kind, cwd: f.cwd, label: f.title, model: f.model } : null;
     })
     .filter(Boolean);
   localStorage.setItem("hf-session", JSON.stringify({ layout, forges: forgesArr }));
@@ -1063,7 +1125,7 @@ async function boot() {
   }
   if (saved && Array.isArray(saved.forges) && saved.forges.length) {
     for (const f of saved.forges) {
-      await summon(f.kind || "shell", { cwd: f.cwd, label: f.label });
+      await summon(f.kind || "shell", { cwd: f.cwd, label: f.label, model: f.model });
     }
     if (saved.layout && saved.layout !== 1) setLayout(saved.layout);
   } else {

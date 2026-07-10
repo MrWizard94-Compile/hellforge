@@ -122,9 +122,29 @@ test("buildShellArgs: pwsh claude appends claude, ignores run", () => {
   assert.deepEqual(r.args, ["-NoLogo", "-NoExit", "-Command", "P; claude"]);
 });
 
+test("buildShellArgs: pwsh launch (grok/ollama) appends after prompt, wins over run", () => {
+  const grok = buildShellArgs("pwsh.exe", { promptCmd: "P", launch: "grok", run: "x" });
+  assert.deepEqual(grok.args, ["-NoLogo", "-NoExit", "-Command", "P; grok"]);
+  const oll = buildShellArgs("pwsh.exe", {
+    promptCmd: "P",
+    launch: "docker exec -it ollama-engine ollama run qwen2.5-coder:14b",
+  });
+  assert.deepEqual(oll.args, [
+    "-NoLogo",
+    "-NoExit",
+    "-Command",
+    "P; docker exec -it ollama-engine ollama run qwen2.5-coder:14b",
+  ]);
+});
+
 test("buildShellArgs: cmd uses /K for run, empty otherwise", () => {
   assert.deepEqual(buildShellArgs("cmd.exe", { run: "dir" }).args, ["/K", "dir"]);
   assert.deepEqual(buildShellArgs("cmd.exe", {}).args, []);
+});
+
+test("buildShellArgs: cmd /K uses launch over run", () => {
+  assert.deepEqual(buildShellArgs("cmd.exe", { launch: "grok", run: "dir" }).args, ["/K", "grok"]);
+  assert.deepEqual(buildShellArgs("cmd.exe", { isClaude: true }).args, ["/K", "claude"]);
 });
 
 test("buildShellArgs: wsl/bash launch plain and defer the run", () => {
@@ -134,6 +154,12 @@ test("buildShellArgs: wsl/bash launch plain and defer the run", () => {
   const bash = buildShellArgs("bash.exe", {});
   assert.deepEqual(bash.args, []);
   assert.equal(bash.deferredRun, null);
+});
+
+test("buildShellArgs: wsl/bash defer launch over run", () => {
+  const wsl = buildShellArgs("wsl.exe", { launch: "grok", run: "ls" });
+  assert.deepEqual(wsl.args, []);
+  assert.equal(wsl.deferredRun, "grok");
 });
 
 test("gaugeHeight clamps to 4..100", () => {
