@@ -837,10 +837,39 @@ async function refreshWpaiPanel() {
           if (act === "kill-loops") args = ["kill", "set", "loops", "true"];
           else if (act === "unkill-loops") args = ["kill", "set", "loops", "false"];
           else if (act === "music") args = ["music", "check"];
+          else if (act === "music-ticket") args = ["music", "check", "-EmitTicket"];
           else if (act === "approvals") args = ["approve", "list"];
+          else if (act === "sync") args = ["bridge", "sync"];
+          else if (act === "approve-first" || act === "reject-first") {
+            const list = await window.hellforge.wpai.run(["approve", "list"]);
+            const text = (list && list.stdout) || "";
+            const m = text.match(/appr-[a-f0-9]+/i);
+            if (!m) {
+              if (out) out.textContent = "No pending approval id found.\n" + text;
+              return;
+            }
+            const decision = act === "approve-first" ? "approved" : "rejected";
+            args = ["approve", "decide", m[0], decision];
+          }
           const res = await window.hellforge.wpai.run(args);
           if (out) {
             out.textContent = ((res && res.stdout) || "") + (res && res.stderr ? "\n" + res.stderr : "");
+          }
+          // Typed bus note for Director actions
+          if (window.hellforge.council && window.hellforge.council.post && HFCouncil.makeProtocolMessage) {
+            try {
+              const note = HFCouncil.makeProtocolMessage(
+                "director",
+                "all",
+                "WPAI deck: " + act,
+                "status",
+                "",
+                Date.now(),
+              );
+              window.hellforge.council.post(note);
+            } catch {
+              /* best-effort */
+            }
           }
           await refreshWpaiPanel();
           renderDeckVitals();
