@@ -627,7 +627,34 @@ function renderDeckVitals() {
     `<div class="deck-stats">
        <span class="deck-stat">FORGE LIT <b>${HFCore.fmtUptime(s.uptime)}</b></span>
        <span class="deck-stat">FIRES <b>${forges.size}</b></span>
-     </div>`;
+     </div>
+     <div class="deck-stats" id="deck-wpai">WPAI · loading…</div>`;
+  // Phase-1 WPAI control-plane strip (approvals / kill / budget / overnight)
+  if (window.hellforge && window.hellforge.wpai && window.hellforge.wpai.snapshot) {
+    window.hellforge.wpai.snapshot().then((snap) => {
+      const slot = $("deck-wpai");
+      if (!slot) return;
+      if (!snap || !snap.ok) {
+        slot.innerHTML =
+          '<span class="deck-stat">WPAI <b>offline</b></span>' +
+          (snap && snap.error
+            ? `<span class="deck-stat">${String(snap.error).slice(0, 80)}</span>`
+            : "");
+        return;
+      }
+      const k = snap.kill || {};
+      const b = snap.budgets || {};
+      const o = snap.overnight || {};
+      const m = snap.music || {};
+      const killOn = !!(k.global || k.loops || k.research || k.publishes);
+      slot.innerHTML =
+        `<span class="deck-stat">APPROVALS <b>${snap.pending || 0}</b></span>` +
+        `<span class="deck-stat">KILL <b>${killOn ? "ON" : "off"}</b></span>` +
+        `<span class="deck-stat">$DAY <b>${b.api_usd_spent_est_day || 0}/${b.api_usd_cap_day || 5}</b></span>` +
+        `<span class="deck-stat">NIGHT <b>${o.armed ? "ARMED" : "idle"}</b></span>` +
+        `<span class="deck-stat">MUSIC <b>${m.checklist_pass ? "READY" : "…"}</b></span>`;
+    });
+  }
 }
 
 function renderDeckForges() {

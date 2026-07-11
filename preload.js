@@ -32,4 +32,8 @@ contextBridge.exposeInMainWorld("hellforge", {
     status: (keyFile) => ipcRenderer.invoke("api:status", keyFile),
     ask: (opts) => ipcRenderer.invoke("api:ask", opts),
   },
+  wpai: {
+    snapshot: () => ipcRenderer.invoke("wpai:snapshot"),
+    run: (args) => ipcRenderer.invoke("wpai:run", args),
+  },
 });

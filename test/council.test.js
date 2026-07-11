@@ -73,6 +73,17 @@ test("makeMessage coerces bad inputs to safe defaults", () => {
   assert.equal(m.text, "");
   assert.equal(typeof makeMessage(1, 2, 3, "x").ts, "number");
 });
+test("makeMessage accepts Protocol v2 extra fields", () => {
+  const m = makeMessage("director", "all", "ticket ready", 42, {
+    type: "approve_request",
+    id: "abcd1234",
+    path: "C:\\WPAI\\Workspace\\.wpai\\approvals\\x.json",
+  });
+  assert.equal(m.type, "approve_request");
+  assert.equal(m.id, "abcd1234");
+  assert.ok(String(m.path).includes("approvals"));
+  assert.equal(m.ts, 42);
+});
 
 // ---- serialize / parse round-trip for the bus (jsonl) ----
 test("serializeMsg is a single line that round-trips through parseBus", () => {

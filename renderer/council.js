@@ -34,13 +34,36 @@
     return ROLE_META[r] || ROLE_META.shell;
   }
 
-  /** Build a normalized, deterministic message record. */
-  function makeMessage(from, to, text, now) {
+  /** Build a normalized, deterministic message record.
+   *  Optional 5th arg `extra` may include Protocol v2 fields: type, id, ref, path.
+   *  Legacy callers (4 args) still produce {ts,from,to,text} only.
+   */
+  function makeMessage(from, to, text, now, extra) {
     const ts = Number(now) || 0;
     const fromStr = from == null || String(from) === "" ? "?" : String(from);
     const toStr = to == null || String(to) === "" ? "all" : String(to);
     const textStr = text == null ? "" : String(text);
-    return { ts: ts, from: fromStr, to: toStr, text: textStr };
+    const msg = { ts: ts, from: fromStr, to: toStr, text: textStr };
+    if (extra != null && typeof extra === "object" && !Array.isArray(extra)) {
+      if (extra.type != null && String(extra.type) !== "") msg.type = String(extra.type);
+      if (extra.id != null && String(extra.id) !== "") msg.id = String(extra.id);
+      if (extra.ref != null && String(extra.ref) !== "") msg.ref = String(extra.ref);
+      if (extra.path != null && String(extra.path) !== "") msg.path = String(extra.path);
+    }
+    return msg;
+  }
+
+  /** Protocol v2 typed bus message (approve_request, kill, budget, …). */
+  function makeProtocolMessage(from, to, text, type, path, now) {
+    const id =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID().replace(/-/g, "").slice(0, 8)
+        : Math.random().toString(16).slice(2, 10);
+    return makeMessage(from, to, text, now, {
+      type: type || "chat",
+      id: id,
+      path: path || undefined,
+    });
   }
 
   /**
@@ -204,6 +227,7 @@
     roleFor,
     roleMeta,
     makeMessage,
+    makeProtocolMessage,
     serializeMsg,
     parseBus,
     resolveTargets,

@@ -209,6 +209,88 @@ ipcMain.handle("journal:save", (e, opts) => {
   }
 });
 
+// ---- WPAI control plane (wpai CLI + BLACKBOARD; no second task store) ----
+const WPAI_CLI = "C:\\WPAI\\Software\\StudioOps\\cli\\wpai.ps1";
+const WPAI_BB = "C:\\WPAI\\Workspace\\.wpai\\BLACKBOARD.json";
+const WPAI_APPROVALS = "C:\\WPAI\\Workspace\\.wpai\\approvals";
+
+ipcMain.handle("wpai:snapshot", () => {
+  try {
+    let bb = null;
+    try {
+      bb = JSON.parse(fs.readFileSync(WPAI_BB, "utf8"));
+    } catch {
+      bb = null;
+    }
+    let pending = 0;
+    try {
+      pending = fs
+        .readdirSync(WPAI_APPROVALS)
+        .filter((f) => f.endsWith(".json"))
+        .map((f) => {
+          try {
+            const t = JSON.parse(fs.readFileSync(path.join(WPAI_APPROVALS, f), "utf8"));
+            return t && t.status === "pending" ? 1 : 0;
+          } catch {
+            return 0;
+          }
+        })
+        .reduce((a, b) => a + b, 0);
+    } catch {
+      pending = 0;
+    }
+    if (!bb) {
+      return {
+        ok: false,
+        error: "BLACKBOARD missing — run Install-WpaiStudio.ps1",
+        pending: pending,
+      };
+    }
+    return {
+      ok: true,
+      pending: pending,
+      generation: bb.generation,
+      goal: bb.director_goal || "",
+      kill: bb.kill_switch || {},
+      budgets: bb.budgets || {},
+      overnight: bb.overnight || {},
+      music: (bb.pipelines && bb.pipelines.music_release) || {},
+      janus: bb.janus || {},
+    };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle("wpai:run", (e, args) => {
+  try {
+    const list = Array.isArray(args) ? args.map(String) : [];
+    const psArgs = ["-NoProfile", "-File", WPAI_CLI].concat(list);
+    return new Promise((resolve) => {
+      execFile(
+        "pwsh",
+        psArgs,
+        { windowsHide: true, timeout: 120000, maxBuffer: 2 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          resolve({
+            ok: !err,
+            code: err && typeof err.code === "number" ? err.code : 0,
+            stdout: stdout ? String(stdout) : "",
+            stderr: stderr ? String(stderr) : err ? String(err.message || err) : "",
+          });
+        }
+      );
+    });
+  } catch (err) {
+    return Promise.resolve({
+      ok: false,
+      code: -1,
+      stdout: "",
+      stderr: err && err.message ? err.message : String(err),
+    });
+  }
+});
+
 // ---- API-backed Council agents (keys live ONLY here, never in the renderer) ----
 const DEFAULT_KEY_FILE = "C:\\WPAI\\MyGrokKeys.md";
 
