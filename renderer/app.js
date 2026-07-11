@@ -791,12 +791,72 @@ function paintGitPulse(repos) {
   });
 }
 
+async function refreshWpaiPanel() {
+  const detail = $("deck-wpai-detail");
+  const out = $("deck-wpai-out");
+  if (!detail) return;
+  if (!window.hellforge || !window.hellforge.wpai) {
+    detail.textContent = "WPAI bridge offline";
+    return;
+  }
+  try {
+    const snap = await window.hellforge.wpai.snapshot();
+    if (!snap || !snap.ok) {
+      detail.textContent = (snap && snap.error) || "BLACKBOARD offline";
+      return;
+    }
+    const k = snap.kill || {};
+    const b = snap.budgets || {};
+    const o = snap.overnight || {};
+    const m = snap.music || {};
+    detail.innerHTML =
+      `<div class="deck-stats">` +
+      `<span class="deck-stat">APPROVALS <b>${snap.pending || 0}</b></span>` +
+      `<span class="deck-stat">KILL <b>${k.global || k.loops ? "ON" : "off"}</b></span>` +
+      `<span class="deck-stat">$DAY <b>${b.api_usd_spent_est_day || 0}/${b.api_usd_cap_day || 5}</b></span>` +
+      `<span class="deck-stat">NIGHT <b>${o.armed ? "ARMED" : "idle"}</b></span>` +
+      `<span class="deck-stat">MUSIC <b>${m.checklist_pass ? "READY" : "…"}</b></span>` +
+      `</div>` +
+      `<div class="vital-detail">${(snap.goal || "").slice(0, 120)}</div>`;
+  } catch (e) {
+    detail.textContent = "WPAI snapshot failed";
+  }
+  if (out && !out.dataset.bound) {
+    out.dataset.bound = "1";
+    const panel = $("deck-wpai-panel");
+    if (panel) {
+      panel.querySelectorAll("[data-wpai]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const act = btn.getAttribute("data-wpai");
+          if (!window.hellforge.wpai) return;
+          if (act === "refresh") {
+            await refreshWpaiPanel();
+            return;
+          }
+          let args = [];
+          if (act === "kill-loops") args = ["kill", "set", "loops", "true"];
+          else if (act === "unkill-loops") args = ["kill", "set", "loops", "false"];
+          else if (act === "music") args = ["music", "check"];
+          else if (act === "approvals") args = ["approve", "list"];
+          const res = await window.hellforge.wpai.run(args);
+          if (out) {
+            out.textContent = ((res && res.stdout) || "") + (res && res.stderr ? "\n" + res.stderr : "");
+          }
+          await refreshWpaiPanel();
+          renderDeckVitals();
+        });
+      });
+    }
+  }
+}
+
 function openDeck() {
   deckOpen = true;
   deckEl.classList.remove("hidden");
   renderDeckVitals();
   renderDeckForges();
   renderDeckTiles();
+  refreshWpaiPanel();
   renderGitPulse(false);
 }
 function closeDeck() {

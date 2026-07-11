@@ -442,6 +442,26 @@ ipcMain.handle("git:status", async (e, dirs) => {
 });
 
 // ---- system tray ----
+function countWpaiPendingApprovals() {
+  try {
+    if (!fs.existsSync(WPAI_APPROVALS)) return 0;
+    return fs
+      .readdirSync(WPAI_APPROVALS)
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => {
+        try {
+          const t = JSON.parse(fs.readFileSync(path.join(WPAI_APPROVALS, f), "utf8"));
+          return t && t.status === "pending" ? 1 : 0;
+        } catch {
+          return 0;
+        }
+      })
+      .reduce((a, b) => a + b, 0);
+  } catch {
+    return 0;
+  }
+}
+
 function rebuildTrayMenu() {
   if (!tray) return;
   try {
@@ -450,6 +470,12 @@ function rebuildTrayMenu() {
       aot = !!(win && !win.isDestroyed() && win.isAlwaysOnTop());
     } catch {
       aot = false;
+    }
+    const pending = countWpaiPendingApprovals();
+    try {
+      tray.setToolTip(pending > 0 ? `HellForge — ${pending} WPAI approval(s)` : "HellForge");
+    } catch {
+      /* best-effort; ignore */
     }
     const menu = Menu.buildFromTemplate([
       {
@@ -482,6 +508,21 @@ function rebuildTrayMenu() {
         click: (item) => {
           try {
             if (win && !win.isDestroyed()) win.setAlwaysOnTop(!!item.checked);
+          } catch {
+            /* best-effort; ignore */
+          }
+        },
+      },
+      { type: "separator" },
+      {
+        label: pending > 0 ? `WPAI Approvals (${pending})` : "WPAI Approvals (none)",
+        enabled: false,
+      },
+      {
+        label: "Refresh WPAI badge",
+        click: () => {
+          try {
+            rebuildTrayMenu();
           } catch {
             /* best-effort; ignore */
           }
