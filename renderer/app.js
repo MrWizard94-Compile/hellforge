@@ -634,12 +634,14 @@ function renderDeckVitals() {
     window.hellforge.wpai.snapshot().then((snap) => {
       const slot = $("deck-wpai");
       if (!slot) return;
+      const line =
+        typeof HFWpai !== "undefined" && HFWpai.formatSnapshotLine
+          ? HFWpai.formatSnapshotLine(snap)
+          : !snap || !snap.ok
+            ? "WPAI · offline"
+            : "WPAI · ok";
       if (!snap || !snap.ok) {
-        slot.innerHTML =
-          '<span class="deck-stat">WPAI <b>offline</b></span>' +
-          (snap && snap.error
-            ? `<span class="deck-stat">${String(snap.error).slice(0, 80)}</span>`
-            : "");
+        slot.innerHTML = `<span class="deck-stat">${escapeHtml(line)}</span>`;
         return;
       }
       const k = snap.kill || {};
@@ -647,6 +649,8 @@ function renderDeckVitals() {
       const o = snap.overnight || {};
       const m = snap.music || {};
       const killOn = !!(k.global || k.loops || k.research || k.publishes);
+      // Structured stats (visual); title carries pure formatSnapshotLine
+      slot.title = line;
       slot.innerHTML =
         `<span class="deck-stat">APPROVALS <b>${snap.pending || 0}</b></span>` +
         `<span class="deck-stat">KILL <b>${killOn ? "ON" : "off"}</b></span>` +
@@ -802,22 +806,29 @@ async function refreshWpaiPanel() {
   try {
     const snap = await window.hellforge.wpai.snapshot();
     if (!snap || !snap.ok) {
-      detail.textContent = (snap && snap.error) || "BLACKBOARD offline";
+      detail.textContent =
+        typeof HFWpai !== "undefined" && HFWpai.formatSnapshotLine
+          ? HFWpai.formatSnapshotLine(snap)
+          : (snap && snap.error) || "BLACKBOARD offline";
       return;
     }
     const k = snap.kill || {};
     const b = snap.budgets || {};
     const o = snap.overnight || {};
     const m = snap.music || {};
+    const line =
+      typeof HFWpai !== "undefined" && HFWpai.formatSnapshotLine
+        ? HFWpai.formatSnapshotLine(snap)
+        : "";
     detail.innerHTML =
-      `<div class="deck-stats">` +
+      `<div class="deck-stats" title="${escapeHtml(line)}">` +
       `<span class="deck-stat">APPROVALS <b>${snap.pending || 0}</b></span>` +
       `<span class="deck-stat">KILL <b>${k.global || k.loops ? "ON" : "off"}</b></span>` +
       `<span class="deck-stat">$DAY <b>${b.api_usd_spent_est_day || 0}/${b.api_usd_cap_day || 5}</b></span>` +
       `<span class="deck-stat">NIGHT <b>${o.armed ? "ARMED" : "idle"}</b></span>` +
       `<span class="deck-stat">MUSIC <b>${m.checklist_pass ? "READY" : "…"}</b></span>` +
       `</div>` +
-      `<div class="vital-detail">${(snap.goal || "").slice(0, 120)}</div>`;
+      `<div class="vital-detail">${escapeHtml((snap.goal || "").slice(0, 120))}</div>`;
   } catch (e) {
     detail.textContent = "WPAI snapshot failed";
   }
@@ -833,14 +844,40 @@ async function refreshWpaiPanel() {
             await refreshWpaiPanel();
             return;
           }
-          let args = [];
-          if (act === "kill-loops") args = ["kill", "set", "loops", "true"];
-          else if (act === "unkill-loops") args = ["kill", "set", "loops", "false"];
-          else if (act === "music") args = ["music", "check"];
-          else if (act === "approvals") args = ["approve", "list"];
+          let listStdout = "";
+          if (act === "approve-first" || act === "reject-first") {
+            const list = await window.hellforge.wpai.run(["approve", "list"]);
+            listStdout = (list && list.stdout) || "";
+          }
+          const args =
+            typeof HFWpai !== "undefined" && HFWpai.buildWpaiArgs
+              ? HFWpai.buildWpaiArgs(act, listStdout)
+              : null;
+          if (!args) {
+            if (act === "approve-first" || act === "reject-first") {
+              if (out) out.textContent = "No pending approval id found.\n" + listStdout;
+            }
+            return;
+          }
           const res = await window.hellforge.wpai.run(args);
           if (out) {
             out.textContent = ((res && res.stdout) || "") + (res && res.stderr ? "\n" + res.stderr : "");
+          }
+          // Typed bus note for Director actions (Protocol v2)
+          if (window.hellforge.council && window.hellforge.council.post && HFCouncil.makeProtocolMessage) {
+            try {
+              const note = HFCouncil.makeProtocolMessage(
+                "director",
+                "all",
+                "WPAI deck: " + act,
+                "status",
+                "",
+                Date.now(),
+              );
+              window.hellforge.council.post(note);
+            } catch {
+              /* best-effort */
+            }
           }
           await refreshWpaiPanel();
           renderDeckVitals();
